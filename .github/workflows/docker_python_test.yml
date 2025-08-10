@@ -2,9 +2,9 @@ name: Docker Python Build
 
 on:
   #  push:
-  #    branches: [ "master" ]
+  #    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 
 jobs:
@@ -17,4 +17,4 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t docker-test-python ./schedule_create --file ./schedule_create/Dockerfile
+        docker build -t docker-test-python . --file ./Dockerfile
