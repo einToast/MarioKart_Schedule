@@ -1,9 +1,9 @@
 name: Python Webserver + Docker build und DockerHub push
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
 #  pull_request:
-#    branches: [ "master" ]
+#    branches: [ "main" ]
 
 jobs:
   build:
