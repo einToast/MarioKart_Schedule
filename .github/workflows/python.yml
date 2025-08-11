@@ -2,9 +2,9 @@ name: Test Python Webserver
 
 on:
   #  push:
-  #    branches: [ "master" ]
+  #    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
     build:
@@ -13,21 +13,39 @@ jobs:
 
         steps:
         - uses: actions/checkout@v4
+
         - name: Set up Python 3.12
           uses: actions/setup-python@v5
           with:
-              python-version: '3.12'
+            python-version: '3.12'
+            cache: 'pip'
+            cache-dependency-path: requirements.txt
+
         - name: Install dependencies
           run: |
-              python -m pip install --upgrade pip
-              pip install -r schedule_create/requirements.txt
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+
         - name: Start Webserver in Background
           run: |
-            nohup python schedule_create/webserver.py &
-        - name: Wait for Webserver to start
+            nohup python webserver.py > webserver.log 2>&1 & echo $! > server.pid
+
+        - name: Wait for Webserver to become healthy
           run: |
-            sleep 5
+            curl --fail --silent --show-error \
+                 --retry 15 --retry-delay 2 --retry-connrefused \
+                 http://localhost:8000/healthcheck
+
         - name: Test Webserver
           run: |
-            curl -f http://localhost:8000/healthcheck || exit 1
+            curl -f http://localhost:8000/healthcheck
 
+        - name: Show server logs on failure
+          if: failure()
+          run: |
+            echo "--- webserver.log (tail) ---" && tail -n 200 webserver.log || true
+
+        - name: Stop Webserver
+          if: always()
+          run: |
+            if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
