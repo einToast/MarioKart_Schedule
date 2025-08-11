@@ -4,12 +4,12 @@ WORKDIR /app
 
 COPY requirements.txt ./
 
-RUN python -m pip install --upgrade pip && \
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && \
+    python -m pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
     CMD curl --fail http://localhost:8000/healthcheck || exit 1
