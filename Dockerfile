@@ -17,4 +17,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
 EXPOSE 8000
 
 ENTRYPOINT ["python"]
-CMD ["webserver.py"]
+CMD ["src/webserver.py"]

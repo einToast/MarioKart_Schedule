@@ -28,7 +28,7 @@ jobs:
 
         - name: Start Webserver in Background
           run: |
-            nohup python webserver.py > webserver.log 2>&1 & echo $! > server.pid
+            nohup python src/webserver.py > webserver.log 2>&1 & echo $! > server.pid
 
         - name: Wait for Webserver to become healthy
           run: |
