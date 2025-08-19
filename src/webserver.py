@@ -9,8 +9,8 @@ def healthcheck():
     return Response("OK", status=200)
 
 
-@app.route("/match_plan", methods=["POST"])
-def match_plan():
+@app.route("/schedule", methods=["POST"])
+def schedule():
     print("Request received")
     data = request.get_json()
     plan, max_games_count = generate_plan(data["num_teams"], 4, 8)
