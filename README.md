@@ -16,7 +16,7 @@ Flask webserver that generates balanced tournament schedules for 4-player Mario 
 - `src/webserver.py`: Flask app exposing `/healthcheck` and `/schedule`.
 - `src/generate_gameplay_lists.py`: schedule generation core (`generate_plan`, `create_plan`).
 - `src/helper.py`, `src/team.py`: utilities and data model.
-- `src/test.py`: ad‑hoc script for schedule testing.
+- `src/test.py`: ad-hoc script for schedule testing.
 
 ## Getting Started
 
@@ -53,7 +53,7 @@ curl -X POST http://localhost:8000/schedule \
 ### Response Shape
 
 - `plan`: Nested list of shape `[round][field][team]`.
-  - A “team” is an integer ID (0-based; e.g., with `num_teams=25`, teams are `0..24`).
+  - A "team" is an integer ID (0-based; e.g., with `num_teams=25`, teams are `0-24`).
   - Each round contains multiple fields (default 4), each with a group of teams (default 4 per field).
 - `max_games_count`: Maximum number of games the least active team has played.
 
