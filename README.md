@@ -1,4 +1,4 @@
-# MarioKart Tournament – Schedule Service
+# MarioKart Tournament Schedule Service
 
 Flask webserver that generates balanced tournament schedules for 4-player Mario Kart matches. It exposes simple HTTP endpoints for health and schedule generation and can be run locally or via Docker. The scheduling core tries to minimize repeated duels and balance "field A" (Main Switch) appearances across teams.
 
