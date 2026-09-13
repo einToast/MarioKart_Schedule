@@ -36,7 +36,6 @@ def schedule():
         num_rounds = int(data.get("num_rounds", 8))
         num_teams_per_game = int(data.get("num_teams_per_game", 4))
 
-        print(version, num_teams, num_fields, num_rounds, num_teams_per_game)
         plan, max_games_count = SCHEDULERS[version](num_teams, num_fields, num_rounds)
     except (TypeError, ValueError, RuntimeError) as exc:
         return jsonify({"error": str(exc)}), 400
