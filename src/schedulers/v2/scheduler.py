@@ -2,7 +2,7 @@ from schedulers.v2.config import DEFAULT_MAX_SECONDS, resolve_seed
 from schedulers.v2.dummy_team import create_plan_with_dummy_team
 from schedulers.v2.optimizer import ScheduleOptimizer
 from schedulers.v2.utils import (
-    create_team_liste,
+    create_team_list,
     get_unrated_games,
     rating_game_counts,
 )
@@ -56,9 +56,9 @@ def create_plan(
     return optimizer.create_plan()
 
 
-def generate_plan(num_teams=25, num_fields=4, num_rounds=8):
-    team_list = create_team_liste(num_teams)
-    plan = create_plan(team_list, num_fields, num_rounds)
+def generate_plan(num_teams=25, num_fields=4, num_rounds=8, num_teams_per_game=4):
+    team_list = create_team_list(num_teams)
+    plan = create_plan(team_list, num_fields, num_rounds, num_teams_per_game)
     rate_plan = get_unrated_games(plan)
     max_games_count = rating_game_counts(plan, rate_plan)
     return plan, max_games_count

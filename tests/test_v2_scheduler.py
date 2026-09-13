@@ -8,7 +8,7 @@ from schedulers.v2.config import resolve_seed
 from schedulers.v2.generate_gameplay_lists import (
     DEFAULT_MAX_SECONDS,
     create_plan as wrapper_create_plan,
-    create_team_liste,
+    create_team_list,
     generate_plan,
     get_unrated_games,
 )
@@ -40,9 +40,10 @@ class SchedulerV2Tests(unittest.TestCase):
 
     def test_main_tournament_shape_and_quality(self):
         plan = create_plan(
-            create_team_liste(20),
+            create_team_list(20),
             number_fields=4,
             number_rounds=8,
+            teams_per_game=4,
             seed=12345,
             max_seconds=0.15,
         )
@@ -52,9 +53,10 @@ class SchedulerV2Tests(unittest.TestCase):
 
     def test_small_tournament_with_one_field(self):
         plan = create_plan(
-            create_team_liste(14),
+            create_team_list(14),
             number_fields=1,
             number_rounds=8,
+            teams_per_game=4,
             seed=12345,
             max_seconds=0.15,
         )
@@ -64,9 +66,10 @@ class SchedulerV2Tests(unittest.TestCase):
 
     def test_small_tournament_duplicate_slots_are_explicit(self):
         plan = create_plan(
-            create_team_liste(10),
+            create_team_list(10),
             number_fields=3,
             number_rounds=8,
+            teams_per_game=4,
             seed=12345,
             max_seconds=0.15,
         )
@@ -77,9 +80,10 @@ class SchedulerV2Tests(unittest.TestCase):
 
     def test_rating_plan_marks_equal_rated_game_counts(self):
         plan = create_plan(
-            create_team_liste(25),
+            create_team_list(25),
             number_fields=4,
             number_rounds=8,
+            teams_per_game=4,
             seed=12345,
             max_seconds=0.15,
         )
@@ -100,16 +104,18 @@ class SchedulerV2Tests(unittest.TestCase):
 
     def test_wrapper_create_plan_matches_scheduler_api(self):
         wrapper_plan = wrapper_create_plan(
-            create_team_liste(16),
+            create_team_list(16),
             number_fields=4,
             number_rounds=8,
+            teams_per_game=4,
             seed=77,
             max_seconds=0.15,
         )
         direct_plan = create_plan(
-            create_team_liste(16),
+            create_team_list(16),
             number_fields=4,
             number_rounds=8,
+            teams_per_game=4,
             seed=77,
             max_seconds=0.15,
         )
@@ -121,7 +127,7 @@ class SchedulerV2Tests(unittest.TestCase):
         self.assertEqual(42, resolve_seed(42, 20, 4, 8, 4))
 
     def test_invalid_inputs_raise_value_error(self):
-        teams_5 = create_team_liste(5)
+        teams_5 = create_team_list(5)
 
         with self.assertRaises(ValueError):
             create_plan(teams_5, number_fields=0)
@@ -129,7 +135,7 @@ class SchedulerV2Tests(unittest.TestCase):
             create_plan(teams_5, number_rounds=0)
         with self.assertRaises(ValueError):
             create_plan(teams_5, teams_per_game=0)
-        teams_33 = create_team_liste(33)
+        teams_33 = create_team_list(33)
         with self.assertRaises(ValueError):
             create_plan(teams_33, number_fields=4, number_rounds=2)
 
@@ -137,13 +143,14 @@ class SchedulerV2Tests(unittest.TestCase):
         self.assertEqual([], create_plan([]))
 
     def test_tiny_fixed_shape_is_not_supported(self):
-        teams = create_team_liste(3)
+        teams = create_team_list(3)
         
         with self.assertRaises(RuntimeError):
             create_plan(
                 teams,
                 number_fields=4,
                 number_rounds=8,
+                teams_per_game=4,
                 max_seconds=0.05,
             )
 

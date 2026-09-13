@@ -36,7 +36,7 @@ def schedule():
         num_rounds = int(data.get("num_rounds", 8))
         num_teams_per_game = int(data.get("num_teams_per_game", 4))
 
-        plan, max_games_count = SCHEDULERS[version](num_teams, num_fields, num_rounds)
+        plan, max_games_count = SCHEDULERS[version](num_teams, num_fields, num_rounds, num_teams_per_game)
     except (TypeError, ValueError, RuntimeError):
         return jsonify({"error": "Invalid input parameters"}), 400
 
@@ -44,6 +44,10 @@ def schedule():
         "plan": plan,
         "max_games_count": next(iter(max_games_count)),
         "version": version,
+        "num_teams": num_teams,
+        "num_fields": num_fields,
+        "num_rounds": num_rounds,
+        "num_teams_per_game": num_teams_per_game,
     }
     return jsonify(response_dict)
 

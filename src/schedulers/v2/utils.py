@@ -1,7 +1,7 @@
 from collections import Counter, defaultdict
 
 
-def create_team_liste(length=10):
+def create_team_list(length=10):
     return list(range(length))
 
 

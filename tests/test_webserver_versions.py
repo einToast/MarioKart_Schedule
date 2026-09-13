@@ -70,7 +70,20 @@ class ScheduleApiVersionTests(unittest.TestCase):
         self.assertEqual(2, payload["version"])
         self.assertEqual(8, len(payload["plan"]))
         self.assertEqual(2, len(payload["plan"][0]))
-    
+        
+    def test_schedule_v2_uses_num_teams_per_game(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": 2, "num_teams_per_game": 2},
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(2, payload["version"])
+        self.assertEqual(8, len(payload["plan"]))
+        self.assertEqual(4, len(payload["plan"][0]))
+        self.assertEqual(4, payload["max_games_count"])
+
     def test_schedule_v2_uses_num_rounds_and_num_fields(self):
         response = self.client.post(
             "/schedule",
@@ -82,6 +95,46 @@ class ScheduleApiVersionTests(unittest.TestCase):
         self.assertEqual(2, payload["version"])
         self.assertEqual(4, len(payload["plan"]))
         self.assertEqual(2, len(payload["plan"][0]))
+        
+        
+    def test_schedule_v2_uses_num_rounds_and_num_teams_per_game(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": 2, "num_rounds": 4, "num_teams_per_game": 2},
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(2, payload["version"])
+        self.assertEqual(4, len(payload["plan"]))
+        self.assertEqual(4, len(payload["plan"][0]))
+        
+    def test_schedule_v2_uses_num_fields_and_num_teams_per_game(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": 2, "num_fields": 2, "num_teams_per_game": 2},
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(2, payload["version"])
+        self.assertEqual(8, len(payload["plan"]))
+        self.assertEqual(2, len(payload["plan"][0]))
+        self.assertEqual(2, payload["max_games_count"])
+    
+    def test_schedule_v2_uses_num_rounds_and_num_fields_and_num_teams_per_game(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": 2, "num_rounds": 4, "num_fields": 2, "num_teams_per_game": 2},
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(2, payload["version"])
+        self.assertEqual(4, len(payload["plan"]))
+        self.assertEqual(2, len(payload["plan"][0]))
+        self.assertEqual(1, payload["max_games_count"])
+
 
     def test_schedule_rejects_invalid_version(self):
         response = self.client.post(
