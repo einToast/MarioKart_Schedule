@@ -121,22 +121,27 @@ class SchedulerV2Tests(unittest.TestCase):
         self.assertEqual(42, resolve_seed(42, 20, 4, 8, 4))
 
     def test_invalid_inputs_raise_value_error(self):
+        teams_5 = create_team_liste(5)
+
         with self.assertRaises(ValueError):
-            create_plan(create_team_liste(5), number_fields=0)
+            create_plan(teams_5, number_fields=0)
         with self.assertRaises(ValueError):
-            create_plan(create_team_liste(5), number_rounds=0)
+            create_plan(teams_5, number_rounds=0)
         with self.assertRaises(ValueError):
-            create_plan(create_team_liste(5), teams_per_game=0)
+            create_plan(teams_5, teams_per_game=0)
+        teams_33 = create_team_liste(33)
         with self.assertRaises(ValueError):
-            create_plan(create_team_liste(33), number_fields=4, number_rounds=2)
+            create_plan(teams_33, number_fields=4, number_rounds=2)
 
     def test_empty_team_list_returns_empty_plan(self):
         self.assertEqual([], create_plan([]))
 
     def test_tiny_fixed_shape_is_not_supported(self):
+        teams = create_team_liste(3)
+        
         with self.assertRaises(RuntimeError):
             create_plan(
-                create_team_liste(3),
+                teams,
                 number_fields=4,
                 number_rounds=8,
                 max_seconds=0.05,

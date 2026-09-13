@@ -38,7 +38,7 @@ def pair_key(team_a, team_b, team_order):
 
 
 def get_unrated_games(game_plan):
-    teams = sorted(set(flatten(game_plan)))
+    teams = set(flatten(game_plan))
     played_games = Counter(flatten(game_plan))
     min_games = min(played_games.values()) if played_games else 0
     rated_games = Counter()
@@ -56,7 +56,7 @@ def get_unrated_games(game_plan):
             rated_round.append(rated_field)
         rate_game_plan.append(rated_round)
 
-    missing_teams = set(teams) - set(rated_games)
+    missing_teams = teams - set(rated_games)
     for team in missing_teams:
         rated_games[team] = 0
 
