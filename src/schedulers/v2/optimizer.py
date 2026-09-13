@@ -119,59 +119,15 @@ class ScheduleOptimizer:
 
         for round_idx in range(self.number_rounds):
             rounds_left_after = self.number_rounds - round_idx - 1
-            entries = []
 
             if len(self.teams) < self.capacity_per_round:
-                for team in self.teams:
-                    if remaining[team] > 0:
-                        entries.append(team)
-                        remaining[team] -= 1
-
-                while len(entries) < self.capacity_per_round:
-                    choices = [
-                        team
-                        for team in self.teams
-                        if remaining[team] > 0 and entries.count(team) < self.teams_per_game
-                    ]
-                    if not choices:
-                        return None
-                    choices.sort(
-                        key=lambda team: (
-                            -remaining[team],
-                            rng.random(),
-                        )
-                    )
-                    team = choices[0]
-                    entries.append(team)
-                    remaining[team] -= 1
+                entries = self._build_small_round_entries(remaining, rng)
             else:
-                mandatory = [
-                    team
-                    for team in self.teams
-                    if remaining[team] > rounds_left_after
-                ]
-                if len(mandatory) > self.capacity_per_round:
-                    return None
-
-                entries.extend(mandatory)
-                for team in mandatory:
-                    remaining[team] -= 1
-
-                fill_candidates = [
-                    team
-                    for team in self.teams
-                    if team not in mandatory and remaining[team] > 0
-                ]
-                fill_candidates.sort(key=lambda team: (-remaining[team], rng.random()))
-
-                for team in fill_candidates:
-                    if len(entries) >= self.capacity_per_round:
-                        break
-                    entries.append(team)
-                    remaining[team] -= 1
-
-                if len(entries) != self.capacity_per_round:
-                    return None
+                entries = self._build_large_round_entries(
+                    remaining, rounds_left_after, rng
+                )
+            if entries is None:
+                return None
 
             rng.shuffle(entries)
             rounds.append(entries)
@@ -179,6 +135,62 @@ class ScheduleOptimizer:
         if any(remaining.values()):
             return None
         return rounds
+
+    def _build_small_round_entries(self, remaining, rng):
+        entries = []
+        for team in self.teams:
+            if remaining[team] > 0:
+                entries.append(team)
+                remaining[team] -= 1
+
+        while len(entries) < self.capacity_per_round:
+            choices = [
+                team
+                for team in self.teams
+                if remaining[team] > 0 and entries.count(team) < self.teams_per_game
+            ]
+            if not choices:
+                return None
+            choices.sort(
+                key=lambda team: (
+                    -remaining[team],
+                    rng.random(),
+                )
+            )
+            team = choices[0]
+            entries.append(team)
+            remaining[team] -= 1
+
+        return entries
+
+    def _build_large_round_entries(self, remaining, rounds_left_after, rng):
+        mandatory = [
+            team for team in self.teams if remaining[team] > rounds_left_after
+        ]
+        if len(mandatory) > self.capacity_per_round:
+            return None
+
+        entries = list(mandatory)
+        for team in mandatory:
+            remaining[team] -= 1
+
+        fill_candidates = [
+            team
+            for team in self.teams
+            if team not in mandatory and remaining[team] > 0
+        ]
+        fill_candidates.sort(key=lambda team: (-remaining[team], rng.random()))
+
+        for team in fill_candidates:
+            if len(entries) >= self.capacity_per_round:
+                break
+            entries.append(team)
+            remaining[team] -= 1
+
+        if len(entries) != self.capacity_per_round:
+            return None
+
+        return entries
 
     def _build_round_fields(
         self,
@@ -416,6 +428,7 @@ class ScheduleOptimizer:
         allowed_round_duplicates = max(0, self.capacity_per_round - len(self.teams))
         steps = 0
         max_steps = 80_000 if len(self.teams) <= 18 else 45_000
+        state = {"current_score": current_score, "best_score": best_score, "best_plan": best_plan}
 
         while steps < max_steps and time.monotonic() < deadline:
             steps += 1
@@ -425,24 +438,30 @@ class ScheduleOptimizer:
             if not self._swap_is_valid(plan, pos_a, pos_b, allowed_round_duplicates):
                 continue
 
-            self._swap_slots(plan, pos_a, pos_b)
-            new_score = self.score_plan(plan)
-            if new_score <= current_score or rng.random() < self._anneal_probability(
-                current_score,
-                new_score,
-                steps,
-                max_steps,
-            ):
-                current_score = new_score
-                if new_score < best_score:
-                    best_score = new_score
-                    best_plan = self._copy_plan(plan)
-                    if self._is_excellent(best_score):
-                        break
-            else:
-                self._swap_slots(plan, pos_a, pos_b)
+            if self._apply_swap_step(plan, pos_a, pos_b, rng, steps, max_steps, state):
+                break
 
-        return best_plan
+        return state["best_plan"]
+
+    def _apply_swap_step(self, plan, pos_a, pos_b, rng, steps, max_steps, state):
+        self._swap_slots(plan, pos_a, pos_b)
+        new_score = self.score_plan(plan)
+        accept = new_score <= state["current_score"] or rng.random() < self._anneal_probability(
+            state["current_score"],
+            new_score,
+            steps,
+            max_steps,
+        )
+        if not accept:
+            self._swap_slots(plan, pos_a, pos_b)
+            return False
+
+        state["current_score"] = new_score
+        if new_score < state["best_score"]:
+            state["best_score"] = new_score
+            state["best_plan"] = self._copy_plan(plan)
+            return self._is_excellent(state["best_score"])
+        return False
 
     def _anneal_probability(self, old_score, new_score, steps, max_steps):
         if new_score[:3] > old_score[:3]:
@@ -509,7 +528,7 @@ class ScheduleOptimizer:
         return [[list(field) for field in round_plan] for round_plan in plan]
 
     def _pair_counts(self, plan):
-        counts = Counter({pair: 0 for pair in self.all_pairs})
+        counts = Counter(dict.fromkeys(self.all_pairs, 0))
         for round_plan in plan:
             for field_plan in round_plan:
                 for team_a, team_b in itertools.combinations(field_plan, 2):

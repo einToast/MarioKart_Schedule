@@ -23,7 +23,7 @@ def flatten(values):
 
 
 def pair_counts(plan, teams):
-    counts = Counter({pair: 0 for pair in itertools.combinations(teams, 2)})
+    counts = Counter(dict.fromkeys(itertools.combinations(teams, 2), 0))
     for round_plan in plan:
         for field_plan in round_plan:
             for team_a, team_b in itertools.combinations(sorted(field_plan), 2):

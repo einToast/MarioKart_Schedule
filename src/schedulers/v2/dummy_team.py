@@ -80,20 +80,11 @@ def create_plan_with_dummy_team(
     )
 
 
-def replace_dummy_team(
-    base_plan,
-    teams,
-    dummy_team,
-    number_rounds,
-    teams_per_game,
-    search_limit=120_000,
-):
-    plan = [[list(field) for field in round_plan] for round_plan in base_plan]
-    team_order = {team: idx for idx, team in enumerate(teams)}
+def _remove_dummy_and_count_pairs(plan, dummy_team, team_order):
     pair_counts = Counter(
         {
             pair_key(team_a, team_b, team_order): 0
-            for team_a, team_b in itertools.combinations(teams, 2)
+            for team_a, team_b in itertools.combinations(team_order, 2)
         }
     )
     dummy_slots = []
@@ -106,102 +97,168 @@ def replace_dummy_team(
             for team_a, team_b in itertools.combinations(field_plan, 2):
                 pair_counts[pair_key(team_a, team_b, team_order)] += 1
 
-    if len(dummy_slots) != number_rounds:
-        raise RuntimeError("Expected the dummy team exactly once per round")
+    return pair_counts, dummy_slots
 
-    best_plan = None
-    best_score = None
-    searched = 0
 
-    def replacement_score(candidate_plan, candidate_pair_counts):
-        max_duel = max(candidate_pair_counts.values()) if candidate_pair_counts else 0
-        pairs_at_max = sum(
-            1 for count in candidate_pair_counts.values() if count == max_duel
-        )
-        repeated_pairs = sum(
-            1 for count in candidate_pair_counts.values() if count >= 2
-        )
-        switch_teams = set()
-        field_counts = {team: Counter() for team in teams}
-        for round_plan in candidate_plan:
-            switch_teams.update(round_plan[0])
-            for field_idx, field_plan in enumerate(round_plan):
-                for team in field_plan:
-                    field_counts[team][field_idx] += 1
-        missing_switch = len(set(teams) - switch_teams)
-        max_field_repeat = max(
-            max(counts.values()) if counts else 0
-            for counts in field_counts.values()
-        )
-        min_distinct_fields = min(len(counts) for counts in field_counts.values())
-        return (
-            missing_switch,
-            max_duel,
-            pairs_at_max,
-            repeated_pairs,
-            max_field_repeat,
-            -min_distinct_fields,
-        )
-
-    def recurse(slot_idx, used_replacements, candidate_pair_counts):
-        nonlocal best_plan, best_score, searched
-        searched += 1
-        if searched > search_limit:
-            return
-        if slot_idx == len(dummy_slots):
-            score = replacement_score(plan, candidate_pair_counts)
-            if best_score is None or score < best_score:
-                best_score = score
-                best_plan = [[list(field) for field in round_plan] for round_plan in plan]
-            return
-
-        round_idx, field_idx = dummy_slots[slot_idx]
-        field_plan = plan[round_idx][field_idx]
-        options = []
-        for team in teams:
-            if team in used_replacements or team in field_plan:
-                continue
-            pair_values = [
-                candidate_pair_counts[pair_key(team, other, team_order)]
-                for other in field_plan
-            ]
-            options.append(
-                (
-                    max(pair_values),
-                    sum(1 for value in pair_values if value >= 2),
-                    sum(pair_values),
-                    team,
-                )
-            )
-        options.sort()
-
-        for _, creates_triples, _, team in options:
-            if best_score is not None and best_score[1] <= 2 and creates_triples:
-                continue
-            field_plan.append(team)
-            used_replacements.add(team)
-            changed_pairs = []
-            for other in field_plan:
-                if other == team:
-                    continue
-                key = pair_key(team, other, team_order)
-                candidate_pair_counts[key] += 1
-                changed_pairs.append(key)
-
-            recurse(slot_idx + 1, used_replacements, candidate_pair_counts)
-
-            for key in changed_pairs:
-                candidate_pair_counts[key] -= 1
-            used_replacements.remove(team)
-            field_plan.pop()
-
-    recurse(0, set(), pair_counts.copy())
-
-    if best_plan is None:
-        raise RuntimeError("Could not replace dummy team")
-
+def _validate_field_sizes(best_plan, teams_per_game):
     for round_plan in best_plan:
         for field_plan in round_plan:
             if len(field_plan) != teams_per_game:
                 raise RuntimeError("Dummy replacement created an incomplete field")
-    return best_plan
+
+
+def _replacement_score(candidate_plan, candidate_pair_counts, teams):
+    max_duel = max(candidate_pair_counts.values()) if candidate_pair_counts else 0
+    pairs_at_max = sum(
+        1 for count in candidate_pair_counts.values() if count == max_duel
+    )
+    repeated_pairs = sum(1 for count in candidate_pair_counts.values() if count >= 2)
+    switch_teams = set()
+    field_counts = {team: Counter() for team in teams}
+    for round_plan in candidate_plan:
+        switch_teams.update(round_plan[0])
+        for field_idx, field_plan in enumerate(round_plan):
+            for team in field_plan:
+                field_counts[team][field_idx] += 1
+    missing_switch = len(set(teams) - switch_teams)
+    max_field_repeat = max(
+        max(counts.values()) if counts else 0 for counts in field_counts.values()
+    )
+    min_distinct_fields = min(len(counts) for counts in field_counts.values())
+    return (
+        missing_switch,
+        max_duel,
+        pairs_at_max,
+        repeated_pairs,
+        max_field_repeat,
+        -min_distinct_fields,
+    )
+
+
+def _field_options(teams, used_replacements, field_plan, candidate_pair_counts, team_order):
+    options = []
+    for team in teams:
+        if team in used_replacements or team in field_plan:
+            continue
+        pair_values = [
+            candidate_pair_counts[pair_key(team, other, team_order)]
+            for other in field_plan
+        ]
+        options.append(
+            (
+                max(pair_values),
+                sum(1 for value in pair_values if value >= 2),
+                sum(pair_values),
+                team,
+            )
+        )
+    options.sort()
+    return options
+
+
+def _apply_team(field_plan, team, team_order, candidate_pair_counts):
+    changed_pairs = []
+    for other in field_plan:
+        if other == team:
+            continue
+        key = pair_key(team, other, team_order)
+        candidate_pair_counts[key] += 1
+        changed_pairs.append(key)
+    return changed_pairs
+
+
+def _revert_team(changed_pairs, candidate_pair_counts):
+    for key in changed_pairs:
+        candidate_pair_counts[key] -= 1
+
+
+def _search_replacements(
+    plan,
+    dummy_slots,
+    slot_idx,
+    teams,
+    team_order,
+    used_replacements,
+    candidate_pair_counts,
+    best,
+    state,
+    search_limit,
+):
+    state["searched"] += 1
+    if state["searched"] > search_limit:
+        return
+    if slot_idx == len(dummy_slots):
+        score = _replacement_score(plan, candidate_pair_counts, teams)
+        if best["score"] is None or score < best["score"]:
+            best["score"] = score
+            best["plan"] = [[list(field) for field in round_plan] for round_plan in plan]
+        return
+
+    round_idx, field_idx = dummy_slots[slot_idx]
+    field_plan = plan[round_idx][field_idx]
+    options = _field_options(
+        teams, used_replacements, field_plan, candidate_pair_counts, team_order
+    )
+
+    for _, creates_triples, _, team in options:
+        if best["score"] is not None and best["score"][1] <= 2 and creates_triples:
+            continue
+        field_plan.append(team)
+        used_replacements.add(team)
+        changed_pairs = _apply_team(field_plan, team, team_order, candidate_pair_counts)
+
+        _search_replacements(
+            plan,
+            dummy_slots,
+            slot_idx + 1,
+            teams,
+            team_order,
+            used_replacements,
+            candidate_pair_counts,
+            best,
+            state,
+            search_limit,
+        )
+
+        _revert_team(changed_pairs, candidate_pair_counts)
+        used_replacements.remove(team)
+        field_plan.pop()
+
+
+def replace_dummy_team(
+    base_plan,
+    teams,
+    dummy_team,
+    number_rounds,
+    teams_per_game,
+    search_limit=120_000,
+):
+    plan = [[list(field) for field in round_plan] for round_plan in base_plan]
+    team_order = {team: idx for idx, team in enumerate(teams)}
+    pair_counts, dummy_slots = _remove_dummy_and_count_pairs(
+        plan, dummy_team, team_order
+    )
+
+    if len(dummy_slots) != number_rounds:
+        raise RuntimeError("Expected the dummy team exactly once per round")
+
+    best = {"plan": None, "score": None}
+    state = {"searched": 0}
+    _search_replacements(
+        plan,
+        dummy_slots,
+        0,
+        teams,
+        team_order,
+        set(),
+        pair_counts.copy(),
+        best,
+        state,
+        search_limit,
+    )
+
+    if best["plan"] is None:
+        raise RuntimeError("Could not replace dummy team")
+
+    _validate_field_sizes(best["plan"], teams_per_game)
+    return best["plan"]

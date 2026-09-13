@@ -46,7 +46,6 @@ def schedule():
         "version": version,
     }
     return jsonify(response_dict)
-    # return jsonify(plan)
 
 
 if __name__ == "__main__":
