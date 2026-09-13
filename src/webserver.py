@@ -1,5 +1,4 @@
 from flask import Flask, Response, jsonify, request
-
 from schedulers.v1.generate_gameplay_lists import (
     generate_plan as generate_plan_v1,
 )
@@ -8,6 +7,7 @@ from schedulers.v2.generate_gameplay_lists import (
 )
 
 app = Flask(__name__)
+
 SCHEDULERS = {
     1: generate_plan_v1,
     2: generate_plan_v2,
@@ -36,7 +36,9 @@ def schedule():
         num_rounds = int(data.get("num_rounds", 8))
         num_teams_per_game = int(data.get("num_teams_per_game", 4))
 
-        plan, max_games_count = SCHEDULERS[version](num_teams, num_fields, num_rounds, num_teams_per_game)
+        plan, max_games_count = SCHEDULERS[version](
+            num_teams, num_fields, num_rounds, num_teams_per_game
+        )
     except (TypeError, ValueError, RuntimeError):
         return jsonify({"error": "Invalid input parameters"}), 400
 

@@ -19,7 +19,9 @@ def create_plan(
     if not team_list:
         return []
     if number_fields <= 0 or number_rounds <= 0 or teams_per_game <= 0:
-        raise ValueError("number_fields, number_rounds and teams_per_game must be positive")
+        raise ValueError(
+            "number_fields, number_rounds and teams_per_game must be positive"
+        )
 
     teams = list(team_list)
     capacity_per_round = number_fields * teams_per_game

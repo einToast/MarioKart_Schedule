@@ -23,10 +23,7 @@ def create_play_targets(teams, total_slots, np_rng):
     base_games, extra_games = divmod(total_slots, len(teams))
     shuffled = [teams[idx] for idx in np_rng.permutation(len(teams))]
     extra_teams = set(shuffled[:extra_games])
-    return {
-        team: base_games + (1 if team in extra_teams else 0)
-        for team in teams
-    }
+    return {team: base_games + (1 if team in extra_teams else 0) for team in teams}
 
 
 def pair_key(team_a, team_b, team_order):

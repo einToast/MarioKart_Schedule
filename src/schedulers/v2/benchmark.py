@@ -1,7 +1,7 @@
-import itertools
+import argparse
 import contextlib
 import io
-import argparse
+import itertools
 import time
 from collections import Counter, defaultdict
 
