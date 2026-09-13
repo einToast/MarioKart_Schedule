@@ -1,7 +1,7 @@
 import itertools
 
 import pandas as pd
-from team import Team
+from schedulers.v1.team import Team
 
 
 def create_team_liste(length=10):
