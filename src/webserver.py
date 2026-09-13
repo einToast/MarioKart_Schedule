@@ -37,8 +37,8 @@ def schedule():
         num_teams_per_game = int(data.get("num_teams_per_game", 4))
 
         plan, max_games_count = SCHEDULERS[version](num_teams, num_fields, num_rounds)
-    except (TypeError, ValueError, RuntimeError) as exc:
-        return jsonify({"error": str(exc)}), 400
+    except (TypeError, ValueError, RuntimeError):
+        return jsonify({"error": "Invalid input parameters"}), 400
 
     response_dict = {
         "plan": plan,
