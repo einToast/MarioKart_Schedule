@@ -2,7 +2,7 @@ from schedulers.v2.config import DEFAULT_MAX_SECONDS
 from schedulers.v2.scheduler import create_plan, generate_plan
 from schedulers.v2.utils import (
     count_in_list,
-    create_team_liste,
+    create_team_list,
     flatten,
     get_unrated_games,
 )

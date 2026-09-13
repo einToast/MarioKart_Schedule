@@ -247,7 +247,7 @@ def get_unrated_games(game_plan):
     return rate_game_plan
 
 
-def generate_plan(num_teams=25, num_fields=4, num_rounds=8):
+def generate_plan(num_teams=25, num_fields=4, num_rounds=8, num_teams_per_game=4):
     team_list = create_team_liste(num_teams)
     plan = create_plan(team_list, num_fields, num_rounds)
     # print(plan)
