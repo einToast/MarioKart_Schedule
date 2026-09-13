@@ -98,6 +98,6 @@ def check_game_plan(plan, eval_plan=None):
         + "Every team at least once at switch 1: "
         + str(len(switch_1) == len(teams))
     )
-    print(output_string)
+    # print(output_string)
 
     return max_games_count
