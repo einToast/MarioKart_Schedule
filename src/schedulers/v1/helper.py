@@ -1,7 +1,7 @@
 import itertools
 
 import pandas as pd
-from team import Team
+from schedulers.v1.team import Team
 
 
 def create_team_liste(length=10):
@@ -98,6 +98,6 @@ def check_game_plan(plan, eval_plan=None):
         + "Every team at least once at switch 1: "
         + str(len(switch_1) == len(teams))
     )
-    print(output_string)
+    # print(output_string)
 
     return max_games_count

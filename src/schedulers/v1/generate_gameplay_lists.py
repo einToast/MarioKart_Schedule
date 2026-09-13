@@ -1,7 +1,7 @@
 import random
 
 import pandas as pd
-from helper import (
+from schedulers.v1.helper import (
     check_game_plan,
     count_in_list,
     create_duells,
@@ -187,7 +187,7 @@ def create_plan(
                 idx_last -= number_fields * 4
                 t_l = new_beginning + new_end
 
-        print(i)
+        # print(i)
         if not skip:
             temp_game_plan, valid = sort_game_plan(game_plan[:], team_list)
             df_duells_new = create_filled_df(team_list, temp_game_plan)
@@ -219,7 +219,7 @@ def create_plan(
                     )
 
             if valid and i >= min_searches and curr_best[1] <= max_duell_repeats:
-                print("SEED:", curr_best[3])
+                # print("SEED:", curr_best[3])
                 return curr_best[0]
         if i >= max_searches:
             return curr_best[0]
@@ -250,16 +250,16 @@ def get_unrated_games(game_plan):
 def generate_plan(num_teams=25, num_fields=4, num_rounds=8):
     team_list = create_team_liste(num_teams)
     plan = create_plan(team_list, num_fields, num_rounds)
-    print(plan)
+    # print(plan)
     rate_plan = get_unrated_games(plan)
-    print(rate_plan)
+    # print(rate_plan)
     max_games_count = check_game_plan(plan, rate_plan)
     return plan, max_games_count
 
 
-# if __name__ == '__main__':
-#     plan = create_plan(create_team_liste(25), 4, 8)
-#     print(plan)
-#     rate_plan = get_unrated_games(plan)
-#     print(rate_plan)
-#     check_game_plan(plan, rate_plan)
+if __name__ == '__main__':
+    plan = create_plan(create_team_liste(20), 4, 8)
+    print(plan)
+    rate_plan = get_unrated_games(plan)
+    print(rate_plan)
+    check_game_plan(plan, rate_plan)

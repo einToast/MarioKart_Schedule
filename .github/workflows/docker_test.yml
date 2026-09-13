@@ -1,14 +1,14 @@
 name: Docker Build
 
 on:
-  #  push:
-  #    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
 
 jobs:
-  build:
+  docker-test:
     runs-on: ubuntu-latest
 
     steps:
