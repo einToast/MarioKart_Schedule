@@ -6,7 +6,11 @@ on:
 #    branches: [ "main" ]
 
 jobs:
-  build:
+  docker-build-push:
+    needs:
+      - docker-test
+      - python-test
+      - python-webserver-test
     runs-on: ubuntu-latest
 
     steps:
