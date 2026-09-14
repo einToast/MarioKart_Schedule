@@ -1,10 +1,9 @@
 name: Test Python Webserver
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_call:
 
 jobs:
     webserver-test:

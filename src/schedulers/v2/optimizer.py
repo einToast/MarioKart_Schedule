@@ -4,7 +4,6 @@ import time
 from collections import Counter
 
 import numpy as np
-
 from schedulers.v2.utils import create_play_targets, flatten, pair_key
 
 
@@ -164,9 +163,7 @@ class ScheduleOptimizer:
         return entries
 
     def _build_large_round_entries(self, remaining, rounds_left_after, rng):
-        mandatory = [
-            team for team in self.teams if remaining[team] > rounds_left_after
-        ]
+        mandatory = [team for team in self.teams if remaining[team] > rounds_left_after]
         if len(mandatory) > self.capacity_per_round:
             return None
 
@@ -175,9 +172,7 @@ class ScheduleOptimizer:
             remaining[team] -= 1
 
         fill_candidates = [
-            team
-            for team in self.teams
-            if team not in mandatory and remaining[team] > 0
+            team for team in self.teams if team not in mandatory and remaining[team] > 0
         ]
         fill_candidates.sort(key=lambda team: (-remaining[team], rng.random()))
 
@@ -344,7 +339,9 @@ class ScheduleOptimizer:
                 if field_idx == 0 and switch_counts[team] == 0:
                     new_switch_teams += 1
                 repeated_field_hits += field_counts[team][field_idx]
-                max_field_after = max(max_field_after, field_counts[team][field_idx] + 1)
+                max_field_after = max(
+                    max_field_after, field_counts[team][field_idx] + 1
+                )
 
             for team_a, team_b in itertools.combinations(field, 2):
                 played = pair_counts[pair_key(team_a, team_b, self.team_order)]
@@ -391,8 +388,7 @@ class ScheduleOptimizer:
         missing_switch = len(set(self.teams) - switch_teams)
         play_spread = max(play_counts.values()) - min(play_counts.values())
         max_field_repeat = max(
-            max(counts.values()) if counts else 0
-            for counts in field_counts.values()
+            max(counts.values()) if counts else 0 for counts in field_counts.values()
         )
         min_distinct_fields = min(len(counts) for counts in field_counts.values())
         field_repeat_excess = sum(
@@ -428,7 +424,11 @@ class ScheduleOptimizer:
         allowed_round_duplicates = max(0, self.capacity_per_round - len(self.teams))
         steps = 0
         max_steps = 80_000 if len(self.teams) <= 18 else 45_000
-        state = {"current_score": current_score, "best_score": best_score, "best_plan": best_plan}
+        state = {
+            "current_score": current_score,
+            "best_score": best_score,
+            "best_plan": best_plan,
+        }
 
         while steps < max_steps and time.monotonic() < deadline:
             steps += 1
@@ -446,7 +446,9 @@ class ScheduleOptimizer:
     def _apply_swap_step(self, plan, pos_a, pos_b, rng, steps, max_steps, state):
         self._swap_slots(plan, pos_a, pos_b)
         new_score = self.score_plan(plan)
-        accept = new_score <= state["current_score"] or rng.random() < self._anneal_probability(
+        accept = new_score <= state[
+            "current_score"
+        ] or rng.random() < self._anneal_probability(
             state["current_score"],
             new_score,
             steps,
