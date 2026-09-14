@@ -6,11 +6,20 @@ on:
 #    branches: [ "main" ]
 
 jobs:
+  docker-test:
+    uses: ./.github/workflows/docker_test.yml
+
+  python-test:
+    uses: ./.github/workflows/python_test.yml
+
+  webserver-test:
+    uses: ./.github/workflows/python_webserver.yml
+
   docker-build-push:
     needs:
       - docker-test
       - python-test
-      - python-webserver-test
+      - webserver-test
     runs-on: ubuntu-latest
 
     steps:
