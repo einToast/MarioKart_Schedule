@@ -16,4 +16,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--workers", "1", "--bind", "0.0.0.0:8000", "src.webserver:app"]
+CMD ["gunicorn", "--workers", "1", "--chdir", "/app/src", "--bind", "0.0.0.0:8000", "webserver:app"]
