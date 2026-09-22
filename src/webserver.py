@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, Response, jsonify, request
 from schedulers.v1.generate_gameplay_lists import (
     generate_plan as generate_plan_v1,
@@ -55,4 +57,8 @@ def schedule():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=8000, host="0.0.0.0")
+    app.run(
+        debug=False,
+        host=os.environ.get("FLASK_RUN_HOST", "127.0.0.1"),
+        port=int(os.environ.get("FLASK_RUN_PORT", "8000")),
+    )
