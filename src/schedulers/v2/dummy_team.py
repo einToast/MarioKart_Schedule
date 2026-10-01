@@ -72,12 +72,7 @@ def create_plan_with_dummy_team(
         attempt += 1
 
     repair_rng = random.Random(seed + 2_000_003)
-    return repair_optimizer.local_improve(
-        best_plan,
-        best_score,
-        repair_rng,
-        deadline,
-    )
+    return repair_optimizer.local_improve(best_plan, repair_rng, deadline)
 
 
 def _remove_dummy_and_count_pairs(plan, dummy_team, team_order):
