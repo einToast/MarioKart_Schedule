@@ -4,12 +4,15 @@ WORKDIR /app
 
 COPY requirements.txt ./
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir --only-binary :all: -r requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --only-binary :all: -r requirements.txt && \
+    useradd --system --no-create-home --uid 10001 schedule
 
 COPY . .
 
 RUN python -m compileall .
+
+USER schedule
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
     CMD curl --fail http://localhost:8000/healthcheck || exit 1
