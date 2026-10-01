@@ -10,11 +10,13 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -24,3 +26,9 @@ updates:
       - dependency-name: "python"
         versions:
           - ">= 3.15.0a0, < 3.15.0"
+
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
