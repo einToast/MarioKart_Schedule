@@ -7,12 +7,16 @@ from schedulers.v1.generate_gameplay_lists import (
 from schedulers.v2.generate_gameplay_lists import (
     generate_plan as generate_plan_v2,
 )
+from schedulers.v3.generate_gameplay_lists import (
+    generate_plan as generate_plan_v3,
+)
 
 app = Flask(__name__)
 
 SCHEDULERS = {
     1: generate_plan_v1,
     2: generate_plan_v2,
+    3: generate_plan_v3,
 }
 
 
@@ -25,12 +29,15 @@ def healthcheck():
 def schedule():
     print("Request received")
     data = request.get_json(silent=True) or {}
-    version = int(data.get("version", 2))
+    try:
+        version = int(data.get("version", 3))
+    except (TypeError, ValueError):
+        version = None
 
     if "num_teams" not in data:
         return jsonify({"error": "num_teams is required"}), 400
     if version not in SCHEDULERS:
-        return jsonify({"error": "version must be one of: 1, 2"}), 400
+        return jsonify({"error": "version must be one of: 1, 2, 3"}), 400
 
     try:
         num_teams = int(data["num_teams"])

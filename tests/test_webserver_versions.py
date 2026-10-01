@@ -139,11 +139,60 @@ class ScheduleApiVersionTests(unittest.TestCase):
     def test_schedule_rejects_invalid_version(self):
         response = self.client.post(
             "/schedule",
-            json={"num_teams": 16, "version": 3},
+            json={"num_teams": 16, "version": 4},
         )
 
         self.assertEqual(400, response.status_code)
         self.assertIn("version", response.get_json()["error"])
+
+    def test_schedule_rejects_non_numeric_version(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": "latest"},
+        )
+
+        self.assertEqual(400, response.status_code)
+        self.assertIn("version", response.get_json()["error"])
+
+    def test_schedule_rejects_too_few_teams(self):
+        for version in (2, 3):
+            response = self.client.post(
+                "/schedule", json={"num_teams": 3, "version": version}
+            )
+
+            self.assertEqual(400, response.status_code)
+
+    def test_schedule_allows_v3(self):
+        response = self.client.post(
+            "/schedule",
+            json={"num_teams": 16, "version": 3},
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(3, payload["version"])
+        self.assertEqual(8, len(payload["plan"]))
+        self.assertEqual(4, len(payload["plan"][0]))
+        self.assertEqual(8, payload["max_games_count"])
+
+    def test_schedule_v3_uses_shape_parameters(self):
+        response = self.client.post(
+            "/schedule",
+            json={
+                "num_teams": 16,
+                "version": 3,
+                "num_rounds": 4,
+                "num_fields": 2,
+                "num_teams_per_game": 2,
+            },
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertEqual(4, len(payload["plan"]))
+        self.assertEqual(2, len(payload["plan"][0]))
+        self.assertEqual(2, len(payload["plan"][0][0]))
+        self.assertEqual(1, payload["max_games_count"])
 
     def test_schedule_requires_num_teams(self):
         response = self.client.post("/schedule", json={"version": 2})

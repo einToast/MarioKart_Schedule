@@ -15,18 +15,20 @@ src/
   webserver.py              Flask app: /healthcheck and /schedule
   schedulers/
     v1/                     Original scheduler (randomized search with curated seeds)
-    v2/                     Current scheduler (time-boxed optimizer), default
+    v2/                     Time-boxed optimizer, default
+    v3/                     Simulated annealing with a fixed iteration count
 tests/                      unittest suite (schedulers and API)
 Dockerfile                  Production image (Gunicorn)
 .github/workflows/          Tests, webserver smoke test, Docker build
 ```
 
-Both schedulers return the same plan shape, so the API treats them interchangeably.
+All schedulers return the same plan shape, so the API treats them interchangeably.
 
 | Version | Approach |
 |---------|----------|
 | `1` | Repeated randomized search. Teams are paired by fewest prior meetings, and rounds are then reordered to balance Main Switch appearances. Uses curated starting seeds for 15 to 25 teams. |
 | `2` (default) | Builds a plan greedily with a cost function, then improves it with pairwise swaps for a fixed time budget (0.35 s by default). Output is deterministic for the same inputs. |
+| `3` | Starts like version `2`, then improves the plan with simulated annealing over team and field swaps for a fixed number of iterations. Puts even field use first: every team plays on every field the same number of times, give or take one, at the cost of a few more repeated duels than version `2`. Gives the same plan for the same inputs on every machine. |
 
 ## Getting Started
 
@@ -68,7 +70,7 @@ Request body (JSON):
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `num_teams` | int | required | Number of teams. |
-| `version` | int | `2` | Scheduler version, `1` or `2`. |
+| `version` | int | `2` | Scheduler version, `1`, `2` or `3`. |
 | `num_fields` | int | `4` | Fields (games) per round. |
 | `num_rounds` | int | `8` | Number of rounds. |
 | `num_teams_per_game` | int | `4` | Teams per field. Ignored by version `1`, which always uses 4. |
@@ -104,10 +106,10 @@ Response (truncated):
 Errors return `400` with a JSON body:
 
 - `{"error": "num_teams is required"}`
-- `{"error": "version must be one of: 1, 2"}`
+- `{"error": "version must be one of: 1, 2, 3"}`
 - `{"error": "Invalid input parameters"}`, for example when the teams do not fit into the available game slots.
 
-## Benchmarking (v2)
+## Benchmarking (v2, v3)
 
 Measure schedule quality across team counts. Run from the repository root:
 
@@ -115,7 +117,7 @@ Measure schedule quality across team counts. Run from the repository root:
 PYTHONPATH=src python -m schedulers.v2.benchmark --team-min 15 --team-max 25
 ```
 
-Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
+Use `schedulers.v3.benchmark` for version `3`. Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
 
 ## Docker
 
