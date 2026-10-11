@@ -10,12 +10,12 @@ class ScheduleApiVersionTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
-    def test_schedule_defaults_to_v2(self):
+    def test_schedule_defaults_to_v3(self):
         response = self.client.post("/schedule", json={"num_teams": 20})
 
         self.assertEqual(200, response.status_code)
         payload = response.get_json()
-        self.assertEqual(2, payload["version"])
+        self.assertEqual(3, payload["version"])
         self.assertEqual(8, len(payload["plan"]))
         self.assertEqual(4, len(payload["plan"][0]))
         self.assertEqual(6, payload["max_games_count"])
