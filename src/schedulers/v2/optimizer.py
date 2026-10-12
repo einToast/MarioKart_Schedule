@@ -1,10 +1,16 @@
 import itertools
+import math
 import random
 import time
 from collections import Counter
 
 import numpy as np
+from schedulers.v2.plan_state import PlanState
 from schedulers.v2.utils import create_play_targets, flatten, pair_key
+
+CONSTRUCTION_TIME_SHARE = 0.3
+ROUND_FIELD_ATTEMPTS = 30
+TARGETED_MOVE_SHARE = 0.5
 
 
 class ScheduleOptimizer:
@@ -30,10 +36,13 @@ class ScheduleOptimizer:
             pair_key(team_a, team_b, self.team_order)
             for team_a, team_b in itertools.combinations(teams, 2)
         ]
+        self._ideal_score = self._compute_ideal_score()
 
     def create_plan(self):
         deadline = time.monotonic() + self.max_seconds
-        construction_deadline = time.monotonic() + self.max_seconds * 0.65
+        construction_deadline = (
+            time.monotonic() + self.max_seconds * CONSTRUCTION_TIME_SHARE
+        )
         best_plan = None
         best_score = None
         attempts = self._attempt_budget()
@@ -59,7 +68,7 @@ class ScheduleOptimizer:
             raise RuntimeError("Could not generate a valid schedule")
 
         repair_rng = random.Random(self.seed + 1_000_003)
-        return self.local_improve(best_plan, best_score, repair_rng, deadline)
+        return self.local_improve(best_plan, repair_rng, deadline)
 
     def _attempt_budget(self):
         if len(self.teams) <= 18:
@@ -69,22 +78,46 @@ class ScheduleOptimizer:
         return 250
 
     def _is_excellent(self, score):
-        same_round_duplicates, missing_switch, max_duel, pairs_at_max = score[:4]
-        unavoidable_duplicates = max(0, self.capacity_per_round - len(self.teams))
-        unavoidable_duplicates *= self.number_rounds
-        return (
-            same_round_duplicates == unavoidable_duplicates
-            and missing_switch == 0
-            and max_duel <= 2
-            and pairs_at_max <= self._expected_pairs_at_two()
-        )
+        return all(value <= bound for value, bound in zip(score, self._ideal_score))
 
-    def _expected_pairs_at_two(self):
-        pair_slots = self.number_rounds * self.number_fields
+    def _compute_ideal_score(self):
+        """Per-criterion lower bounds of ``score_plan``; ``inf`` means unconstrained."""
+        team_count = len(self.teams)
+        fields = self.number_fields
+        pair_slots = self.number_rounds * fields
         pair_slots *= self.teams_per_game * (self.teams_per_game - 1) // 2
-        if not self.all_pairs:
-            return 0
-        return max(0, pair_slots - len(self.all_pairs))
+        base_games, extra_games = divmod(self.total_slots, team_count)
+        max_games = base_games + (1 if extra_games else 0)
+        switch_slots = self.number_rounds * self.teams_per_game
+
+        duplicates = max(0, self.capacity_per_round - team_count) * self.number_rounds
+        field_repeat_excess = (team_count - extra_games) * max(0, base_games - fields)
+        field_repeat_excess += extra_games * max(0, base_games + 1 - fields)
+
+        # Each team only has team_count - 1 distinct opponents, so a team playing
+        # games * (teams_per_game - 1) opponent slots must repeat the surplus.
+        opponents_per_game = self.teams_per_game - 1
+        team_surplus = (team_count - extra_games) * max(
+            0, base_games * opponents_per_game - (team_count - 1)
+        )
+        team_surplus += extra_games * max(
+            0, (base_games + 1) * opponents_per_game - (team_count - 1)
+        )
+        repeat_excess = max(pair_slots - len(self.all_pairs), -(-team_surplus // 2))
+        max_duel = -(-pair_slots // len(self.all_pairs)) if self.all_pairs else 0
+        return (
+            duplicates,
+            0,
+            max(1, max_duel),
+            math.inf,
+            math.inf,
+            max(0, repeat_excess),
+            1 if extra_games else 0,
+            -(-max_games // fields),
+            -min(base_games, fields),
+            field_repeat_excess,
+            1 if switch_slots % team_count else 0,
+        )
 
     def _build_candidate(self, rng, np_rng):
         targets = create_play_targets(self.teams, self.total_slots, np_rng)
@@ -197,9 +230,8 @@ class ScheduleOptimizer:
     ):
         best_fields = None
         best_score = None
-        attempts = 90
 
-        for attempt in range(attempts):
+        for attempt in range(ROUND_FIELD_ATTEMPTS):
             fields = [[] for _ in range(self.number_fields)]
             entries = list(round_entries)
             rng.shuffle(entries)
@@ -411,64 +443,59 @@ class ScheduleOptimizer:
             switch_spread,
         )
 
-    def local_improve(self, plan, score, rng, deadline):
-        current_score = score
-        best_score = score
-        best_plan = self._copy_plan(plan)
+    def local_improve(self, plan, rng, deadline):
+        state = PlanState(self.team_order, plan)
+        current_score = best_score = state.score()
+        best_plan = state.snapshot()
         positions = [
             (round_idx, field_idx, team_idx)
             for round_idx in range(self.number_rounds)
             for field_idx in range(self.number_fields)
             for team_idx in range(self.teams_per_game)
         ]
+        position_count = len(positions)
         allowed_round_duplicates = max(0, self.capacity_per_round - len(self.teams))
-        steps = 0
-        max_steps = 80_000 if len(self.teams) <= 18 else 45_000
-        state = {
-            "current_score": current_score,
-            "best_score": best_score,
-            "best_plan": best_plan,
-        }
+        started_at = time.monotonic()
+        duration = max(deadline - started_at, 1e-9)
+        excellent = self._is_excellent(best_score)
 
-        while steps < max_steps and time.monotonic() < deadline:
-            steps += 1
-            pos_a, pos_b = rng.sample(positions, 2)
-            if self._slot(plan, pos_a) == self._slot(plan, pos_b):
-                continue
-            if not self._swap_is_valid(plan, pos_a, pos_b, allowed_round_duplicates):
-                continue
-
-            if self._apply_swap_step(plan, pos_a, pos_b, rng, steps, max_steps, state):
+        while not excellent:
+            now = time.monotonic()
+            if now >= deadline:
                 break
 
-        return state["best_plan"]
+            pos_a = None
+            if rng.random() < TARGETED_MOVE_SHARE:
+                pos_a = state.repeated_pair_position(rng)
+            if pos_a is None:
+                pos_a = positions[int(rng.random() * position_count)]
+            pos_b = positions[int(rng.random() * position_count)]
+            if not state.swap_is_valid(pos_a, pos_b, allowed_round_duplicates):
+                continue
 
-    def _apply_swap_step(self, plan, pos_a, pos_b, rng, steps, max_steps, state):
-        self._swap_slots(plan, pos_a, pos_b)
-        new_score = self.score_plan(plan)
-        accept = new_score <= state[
-            "current_score"
-        ] or rng.random() < self._anneal_probability(
-            state["current_score"],
-            new_score,
-            steps,
-            max_steps,
-        )
-        if not accept:
-            self._swap_slots(plan, pos_a, pos_b)
-            return False
+            state.swap(pos_a, pos_b)
+            new_score = state.score()
+            progress = (now - started_at) / duration
+            if new_score <= current_score or rng.random() < self._anneal_probability(
+                current_score, new_score, progress
+            ):
+                current_score = new_score
+                if new_score < best_score:
+                    best_score = new_score
+                    best_plan = state.snapshot()
+                    excellent = self._is_excellent(best_score)
+            else:
+                state.swap(pos_a, pos_b)
 
-        state["current_score"] = new_score
-        if new_score < state["best_score"]:
-            state["best_score"] = new_score
-            state["best_plan"] = self._copy_plan(plan)
-            return self._is_excellent(state["best_score"])
-        return False
+        return [
+            [[self.teams[idx] for idx in field] for field in round_plan]
+            for round_plan in best_plan
+        ]
 
-    def _anneal_probability(self, old_score, new_score, steps, max_steps):
+    def _anneal_probability(self, old_score, new_score, progress):
         if new_score[:3] > old_score[:3]:
             return 0.0
-        temperature = max(0.01, 1.0 - steps / max_steps)
+        temperature = max(0.01, 1.0 - progress)
         old_value = self._weighted_score(old_score)
         new_value = self._weighted_score(new_score)
         if new_value <= old_value:
@@ -490,44 +517,6 @@ class ScheduleOptimizer:
             1,
         )
         return sum(value * weight for value, weight in zip(score, weights))
-
-    def _slot(self, plan, position):
-        round_idx, field_idx, team_idx = position
-        return plan[round_idx][field_idx][team_idx]
-
-    def _swap_slots(self, plan, pos_a, pos_b):
-        round_a, field_a, team_a = pos_a
-        round_b, field_b, team_b = pos_b
-        plan[round_a][field_a][team_a], plan[round_b][field_b][team_b] = (
-            plan[round_b][field_b][team_b],
-            plan[round_a][field_a][team_a],
-        )
-
-    def _swap_is_valid(self, plan, pos_a, pos_b, allowed_round_duplicates):
-        self._swap_slots(plan, pos_a, pos_b)
-        affected_rounds = {pos_a[0], pos_b[0]}
-        affected_fields = {(pos_a[0], pos_a[1]), (pos_b[0], pos_b[1])}
-        valid = True
-
-        for round_idx, field_idx in affected_fields:
-            field = plan[round_idx][field_idx]
-            if len(field) != len(set(field)):
-                valid = False
-                break
-
-        if valid:
-            for round_idx in affected_rounds:
-                round_teams = flatten(plan[round_idx])
-                round_duplicates = len(round_teams) - len(set(round_teams))
-                if round_duplicates > allowed_round_duplicates:
-                    valid = False
-                    break
-
-        self._swap_slots(plan, pos_a, pos_b)
-        return valid
-
-    def _copy_plan(self, plan):
-        return [[list(field) for field in round_plan] for round_plan in plan]
 
     def _pair_counts(self, plan):
         counts = Counter(dict.fromkeys(self.all_pairs, 0))

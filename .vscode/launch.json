@@ -1,0 +1,51 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MarioKartSchedule",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "cwd": "${workspaceFolder}/src",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": [
+        "run",
+        "--no-debugger",
+        "--no-reload",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "env": {
+        "FLASK_APP": "webserver.py",
+        "FLASK_DEBUG": "1",
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "MarioKartSchedule Devcontainer",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "cwd": "${workspaceFolder}/src",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "run",
+        "--no-debugger",
+        "--no-reload",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ],
+      "env": {
+        "FLASK_APP": "webserver.py",
+        "FLASK_DEBUG": "1",
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal"
+    }
+  ]
+}
