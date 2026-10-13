@@ -17,6 +17,7 @@ src/
     v1/                     Original scheduler (randomized search with curated seeds)
     v2/                     Time-boxed optimizer, default
     v3/                     Simulated annealing with a fixed iteration count
+    v4/                     Like v3, with a number of teams per game for every field
 tests/                      unittest suite (schedulers and API)
 Dockerfile                  Production image (Gunicorn)
 .github/workflows/          Tests, webserver smoke test, Docker build
@@ -29,6 +30,7 @@ All schedulers return the same plan shape, so the API treats them interchangeabl
 | `1` | Repeated randomized search. Teams are paired by fewest prior meetings, and rounds are then reordered to balance Main Switch appearances. Uses curated starting seeds for 15 to 25 teams. |
 | `2` (default) | Builds a plan greedily with a cost function, then improves it with pairwise swaps for a fixed time budget (0.35 s by default). Output is deterministic for the same inputs. |
 | `3` | Starts like version `2`, then improves the plan with simulated annealing over team and field swaps for a fixed number of iterations. Puts even field use first: every team plays on every field the same number of times, give or take one, at the cost of a few more repeated duels than version `2`. Gives the same plan for the same inputs on every machine. |
+| `4` | Version `3` with a number of teams per game for every field, for example two Switches with 4 controllers and one with 2. A team plays on a field in proportion to its size: with 4 and 2 teams per game, about two thirds of its games are on the larger field. |
 
 ## Getting Started
 
@@ -70,10 +72,10 @@ Request body (JSON):
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `num_teams` | int | required | Number of teams. |
-| `version` | int | `2` | Scheduler version, `1`, `2` or `3`. |
+| `version` | int | `2` | Scheduler version, `1`, `2`, `3` or `4`. |
 | `num_fields` | int | `4` | Fields (games) per round. |
 | `num_rounds` | int | `8` | Number of rounds. |
-| `num_teams_per_game` | int | `4` | Teams per field. Ignored by version `1`, which always uses 4. |
+| `num_teams_per_game` | int, or list of int for version `4` | `4` | Teams per field. Ignored by version `1`, which always uses 4. Version `4` also accepts a list with one entry per field, such as `[4, 4, 2]`; the first entry is the Main Switch field. |
 
 Example:
 
@@ -103,13 +105,23 @@ Response (truncated):
 - `max_games_count` is the number of games each team plays that count towards the rating. Games a team plays beyond the minimum are excluded.
 - The other fields echo the parameters used.
 
+Example with a different number of teams on every field (version `4`):
+
+```bash
+curl -X POST http://localhost:8000/schedule \
+  -H 'Content-Type: application/json' \
+  -d '{"num_teams": 20, "version": 4, "num_fields": 3, "num_teams_per_game": [4, 4, 2]}'
+```
+
+Every round of the plan then has fields with 4, 4 and 2 teams, and `num_teams_per_game` is echoed as the list.
+
 Errors return `400` with a JSON body:
 
 - `{"error": "num_teams is required"}`
-- `{"error": "version must be one of: 1, 2, 3"}`
-- `{"error": "Invalid input parameters"}`, for example when the teams do not fit into the available game slots.
+- `{"error": "version must be one of: 1, 2, 3, 4"}`
+- `{"error": "Invalid input parameters"}`, for example when the teams do not fit into the available game slots, or when `num_teams_per_game` is a list for a version below `4` or does not have one entry per field.
 
-## Benchmarking (v2, v3)
+## Benchmarking (v2, v3, v4)
 
 Measure schedule quality across team counts. Run from the repository root:
 
@@ -117,7 +129,7 @@ Measure schedule quality across team counts. Run from the repository root:
 PYTHONPATH=src python -m schedulers.v2.benchmark --team-min 15 --team-max 25
 ```
 
-Use `schedulers.v3.benchmark` for version `3`. Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
+Use `schedulers.v3.benchmark` for version `3` and `schedulers.v4.benchmark` for version `4`, which also takes one size per field, as in `--fields 3 --teams-per-game 4,4,2`. Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
 
 ## Docker
 

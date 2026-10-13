@@ -10,6 +10,9 @@ from schedulers.v2.generate_gameplay_lists import (
 from schedulers.v3.generate_gameplay_lists import (
     generate_plan as generate_plan_v3,
 )
+from schedulers.v4.generate_gameplay_lists import (
+    generate_plan as generate_plan_v4,
+)
 
 app = Flask(__name__)
 
@@ -17,7 +20,18 @@ SCHEDULERS = {
     1: generate_plan_v1,
     2: generate_plan_v2,
     3: generate_plan_v3,
+    4: generate_plan_v4,
 }
+# Versions that accept a list with one num_teams_per_game entry per field.
+PER_FIELD_VERSIONS = {4}
+
+
+def parse_teams_per_game(value, version):
+    if not isinstance(value, list):
+        return int(value)
+    if version not in PER_FIELD_VERSIONS:
+        raise ValueError("num_teams_per_game must be a single number")
+    return [int(size) for size in value]
 
 
 @app.route("/healthcheck", methods=["GET"])
@@ -37,13 +51,15 @@ def schedule():
     if "num_teams" not in data:
         return jsonify({"error": "num_teams is required"}), 400
     if version not in SCHEDULERS:
-        return jsonify({"error": "version must be one of: 1, 2, 3"}), 400
+        return jsonify({"error": "version must be one of: 1, 2, 3, 4"}), 400
 
     try:
         num_teams = int(data["num_teams"])
         num_fields = int(data.get("num_fields", 4))
         num_rounds = int(data.get("num_rounds", 8))
-        num_teams_per_game = int(data.get("num_teams_per_game", 4))
+        num_teams_per_game = parse_teams_per_game(
+            data.get("num_teams_per_game", 4), version
+        )
 
         plan, max_games_count = SCHEDULERS[version](
             num_teams, num_fields, num_rounds, num_teams_per_game
