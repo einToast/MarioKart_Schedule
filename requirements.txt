@@ -6,7 +6,7 @@ gunicorn==26.2.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.4
-numpy==2.5.3
+numpy==2.5.4
 pandas==3.0.6
 python-dateutil==2.9.0.post0
 pytz==2026.5
