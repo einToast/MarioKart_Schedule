@@ -1,11 +1,19 @@
-from schedulers.v4.config import DEFAULT_MAX_ITERATIONS, DEFAULT_MAX_SECONDS
+from schedulers.v4.config import DEFAULT_MAX_SECONDS
 from schedulers.v4.scheduler import create_plan, generate_plan
 from schedulers.v4.utils import (
-    count_in_list,
     create_team_list,
     flatten,
     get_unrated_games,
 )
+
+__all__ = [
+    "DEFAULT_MAX_SECONDS",
+    "create_plan",
+    "create_team_list",
+    "flatten",
+    "generate_plan",
+    "get_unrated_games",
+]
 
 
 if __name__ == "__main__":

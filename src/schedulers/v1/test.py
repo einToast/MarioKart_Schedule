@@ -33,9 +33,9 @@ def generate_schedule(num_teams=25, num_fields=4, num_rounds=8, teams_per_game=4
 
     return schedule
 
-# Generate and print the schedule
-schedule = generate_schedule()
-for rnd, fields in schedule.items():
-    print(rnd)
-    for field, teams in fields.items():
-        print(f"  {field}: {teams}")
+if __name__ == "__main__":
+    # Generate and print the schedule
+    for round_name, fields in generate_schedule().items():
+        print(round_name)
+        for field, field_teams in fields.items():
+            print(f"  {field}: {field_teams}")

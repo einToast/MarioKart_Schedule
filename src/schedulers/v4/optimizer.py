@@ -258,8 +258,8 @@ class ScheduleOptimizer:
             if not choices:
                 return None
             choices.sort(
-                key=lambda team: (
-                    -remaining[team],
+                key=lambda candidate: (
+                    -remaining[candidate],
                     rng.random(),
                 )
             )
@@ -347,9 +347,9 @@ class ScheduleOptimizer:
     def _prefill_switch_field(self, entries, switch_field, switch_counts, rng):
         candidates = sorted(
             set(entries),
-            key=lambda team: (
-                switch_counts[team] > 0,
-                switch_counts[team],
+            key=lambda candidate: (
+                switch_counts[candidate] > 0,
+                switch_counts[candidate],
                 rng.random(),
             ),
         )
