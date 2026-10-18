@@ -24,11 +24,11 @@ def create_plan(
         """gets the best combinations of given teams"""
         combinations = []
         pairs = []
-        i = 0
-        while i < len(teams):
-            t_1 = teams[i]
-            j = i + 1
-            i += 1
+        idx = 0
+        while idx < len(teams):
+            t_1 = teams[idx]
+            j = idx + 1
+            idx += 1
             while j < len(teams):
                 t_2 = teams[j]
                 j += 1
@@ -42,7 +42,7 @@ def create_plan(
                         teams.remove(t_1)
                         teams.remove(t_2)
                         pairs.append({t_1, t_2})
-                        i = 0
+                        idx = 0
                         break
         if teams:
             while len(teams) >= 2:
@@ -164,7 +164,7 @@ def create_plan(
             len(t_l) - 1
         )  # all teams after this index have more games played then the ones before
 
-        for number_round in range(number_rounds):
+        for _ in range(number_rounds):
             selection = t_l[0 : number_fields * 4]
             round_plan = get_best_combination(selection, df_duells)
             df_duells = sync_df(round_plan, df_duells)
@@ -247,7 +247,7 @@ def get_unrated_games(game_plan):
     return rate_game_plan
 
 
-def generate_plan(num_teams=25, num_fields=4, num_rounds=8, num_teams_per_game=4):
+def generate_plan(num_teams=25, num_fields=4, num_rounds=8, _num_teams_per_game=4):
     team_list = create_team_liste(num_teams)
     plan = create_plan(team_list, num_fields, num_rounds)
     # print(plan)
@@ -258,8 +258,8 @@ def generate_plan(num_teams=25, num_fields=4, num_rounds=8, num_teams_per_game=4
 
 
 if __name__ == '__main__':
-    plan = create_plan(create_team_liste(20), 4, 8)
-    print(plan)
-    rate_plan = get_unrated_games(plan)
-    print(rate_plan)
-    check_game_plan(plan, rate_plan)
+    generated_plan = create_plan(create_team_liste(20), 4, 8)
+    print(generated_plan)
+    generated_rate_plan = get_unrated_games(generated_plan)
+    print(generated_rate_plan)
+    check_game_plan(generated_plan, generated_rate_plan)
