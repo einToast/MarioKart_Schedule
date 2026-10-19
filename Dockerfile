@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt ./
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir --only-binary :all: -r requirements.txt && \
+    pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt && \
     useradd --system --no-create-home --uid 10001 schedule
 
 COPY . .
