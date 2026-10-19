@@ -8,9 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
     pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt && \
     useradd --system --no-create-home --uid 10001 schedule
 
-COPY . .
-
-RUN python -m compileall .
+COPY src/ ./src/
 
 USER schedule
 
