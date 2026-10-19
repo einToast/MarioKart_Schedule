@@ -10,8 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 
 COPY src/ ./src/
 
-RUN python -m compileall src
-
 USER schedule
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
