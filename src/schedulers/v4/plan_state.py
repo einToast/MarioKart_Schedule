@@ -55,11 +55,7 @@ class PlanState:
         self.missing_switch = team_count
         self.energy = team_count * MISSING_SWITCH_WEIGHT
 
-        games = [0] * team_count
-        for round_plan in self.plan:
-            for field in round_plan:
-                for team in field:
-                    games[team] += 1
+        games = self._games_per_team()
         field_sizes = [len(field) for field in self.plan[0]]
         bounds = [field_share_bounds(count, field_sizes) for count in games]
         self.field_low = [low for low, _ in bounds]
@@ -67,13 +63,7 @@ class PlanState:
         self.field_imbalance = sum(sum(low) for low in self.field_low)
         self.energy += self.field_imbalance * FIELD_IMBALANCE_WEIGHT
 
-        for round_idx, round_plan in enumerate(self.plan):
-            for field_idx, field in enumerate(round_plan):
-                for idx, team in enumerate(field):
-                    for other in field[:idx]:
-                        self._add_pair(team, other)
-                    self._add_field(team, field_idx)
-                    self._add_round(round_idx, team)
+        self._add_plan()
 
         played = [sum(counts) for counts in self.field_counts]
         played = [count for count in played if count]
@@ -159,17 +149,40 @@ class PlanState:
         for _ in range(tries):
             round_idx = int(rng.random() * self.num_rounds)
             field_idx = int(rng.random() * self.num_fields)
-            field = self.plan[round_idx][field_idx]
-            for idx, team_a in enumerate(field):
-                for other_idx in range(idx + 1, len(field)):
-                    key = self._pair_key(team_a, field[other_idx])
-                    if self.pair_counts[key] >= max_duel:
-                        chosen = idx if rng.random() < 0.5 else other_idx
-                        return round_idx, field_idx, chosen
+            chosen = self._repeated_pair_idx(
+                self.plan[round_idx][field_idx], max_duel, rng
+            )
+            if chosen is not None:
+                return round_idx, field_idx, chosen
         return None
 
     def snapshot(self):
         return [[list(field) for field in round_plan] for round_plan in self.plan]
+
+    def _games_per_team(self):
+        games = [0] * self.team_count
+        for round_plan in self.plan:
+            for field in round_plan:
+                for team in field:
+                    games[team] += 1
+        return games
+
+    def _add_plan(self):
+        for round_idx, round_plan in enumerate(self.plan):
+            for field_idx, field in enumerate(round_plan):
+                for idx, team in enumerate(field):
+                    for other in field[:idx]:
+                        self._add_pair(team, other)
+                    self._add_field(team, field_idx)
+                    self._add_round(round_idx, team)
+
+    def _repeated_pair_idx(self, field, max_duel, rng):
+        for idx, team_a in enumerate(field):
+            for other_idx in range(idx + 1, len(field)):
+                key = self._pair_key(team_a, field[other_idx])
+                if self.pair_counts[key] >= max_duel:
+                    return idx if rng.random() < 0.5 else other_idx
+        return None
 
     def _round_stays_valid(self, round_idx, leaving, entering, allowed_duplicates):
         counts = self.round_counts[round_idx]

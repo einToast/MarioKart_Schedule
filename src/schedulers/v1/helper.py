@@ -1,11 +1,12 @@
 import itertools
+from collections import Counter
 
 import pandas as pd
 from schedulers.v1.team import Team
 
 
 def create_team_liste(length=10):
-    return [i for i in range(length)]
+    return list(range(length))
 
 
 def count_in_list(temp_list, x):
@@ -49,55 +50,13 @@ def create_filled_df(_t_l, plan_games):
 
 
 def check_game_plan(plan, eval_plan=None):
-    output_string = ""
-
-    output_string += str(plan)
-    max_games_count = set(iter([0]))
-
-    if plan and isinstance(plan[0][0][0], Team):
-        teams = sorted(list(set(flatten(plan))), key=lambda team: team.name)
-    else:
-        teams = sorted(list(set(flatten(plan))))
-    df = create_filled_df(teams, plan)
-    for num in range(df["num_games"].max(), -1, -1):
-        output_string += (
-            "\n"
-            + str(len(df[df["num_games"] == num]))
-            + " duells repeat "
-            + str(num)
-            + " times"
-        )
-    num_games = set()
-    for t in teams:
-        num_games.add(count_in_list(plan, t))
-    output_string += "\n" + "Every team plays between " + str(num_games)
-    if eval_plan:
-        dic = dict()
-        for r_idx in range(len(plan)):
-            for f_idx in range(len(plan[r_idx])):
-                for t_idx in range(len(plan[r_idx][f_idx])):
-                    if eval_plan[r_idx][f_idx][t_idx]:
-                        if dic.get(plan[r_idx][f_idx][t_idx]):
-                            dic[plan[r_idx][f_idx][t_idx]] += 1
-                        else:
-                            dic[plan[r_idx][f_idx][t_idx]] = 1
-        output_string += (
-            "\n"
-            + "Every team has same amount of rating games: "
-            + str(len(set(dic.values())) == 1)
-            + " = "
-            + str(set(dic.values()))
-        )
-        max_games_count = set(dic.values())
-    switch_1 = set()
-    for r in plan:
-        for t in r[0]:
-            switch_1.add(t)
-    output_string += (
-        "\n"
-        + "Every team at least once at switch 1: "
-        + str(len(switch_1) == len(teams))
+    if not eval_plan:
+        return {0}
+    rating_games = Counter(
+        team
+        for round_plan, round_eval in zip(plan, eval_plan)
+        for field, field_eval in zip(round_plan, round_eval)
+        for team, rated in zip(field, field_eval)
+        if rated
     )
-    # print(output_string)
-
-    return max_games_count
+    return set(rating_games.values())

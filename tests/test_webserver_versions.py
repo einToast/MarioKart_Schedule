@@ -20,31 +20,20 @@ class ScheduleApiVersionTests(unittest.TestCase):
         self.assertEqual(4, len(payload["plan"][0]))
         self.assertEqual(6, payload["max_games_count"])
 
-    def test_schedule_allows_v1(self):
-        response = self.client.post(
-            "/schedule",
-            json={"num_teams": 16, "version": 1},
-        )
+    def test_schedule_allows_v1_to_v3(self):
+        for version in (1, 2, 3):
+            with self.subTest(version=version):
+                response = self.client.post(
+                    "/schedule",
+                    json={"num_teams": 16, "version": version},
+                )
 
-        self.assertEqual(200, response.status_code)
-        payload = response.get_json()
-        self.assertEqual(1, payload["version"])
-        self.assertEqual(8, len(payload["plan"]))
-        self.assertEqual(4, len(payload["plan"][0]))
-        self.assertEqual(8, payload["max_games_count"])
-
-    def test_schedule_allows_v2(self):
-        response = self.client.post(
-            "/schedule",
-            json={"num_teams": 16, "version": 2},
-        )
-
-        self.assertEqual(200, response.status_code)
-        payload = response.get_json()
-        self.assertEqual(2, payload["version"])
-        self.assertEqual(8, len(payload["plan"]))
-        self.assertEqual(4, len(payload["plan"][0]))
-        self.assertEqual(8, payload["max_games_count"])
+                self.assertEqual(200, response.status_code)
+                payload = response.get_json()
+                self.assertEqual(version, payload["version"])
+                self.assertEqual(8, len(payload["plan"]))
+                self.assertEqual(4, len(payload["plan"][0]))
+                self.assertEqual(8, payload["max_games_count"])
 
     def test_schedule_v2_uses_num_rounds(self):
         response = self.client.post(
@@ -161,19 +150,6 @@ class ScheduleApiVersionTests(unittest.TestCase):
             )
 
             self.assertEqual(400, response.status_code)
-
-    def test_schedule_allows_v3(self):
-        response = self.client.post(
-            "/schedule",
-            json={"num_teams": 16, "version": 3},
-        )
-
-        self.assertEqual(200, response.status_code)
-        payload = response.get_json()
-        self.assertEqual(3, payload["version"])
-        self.assertEqual(8, len(payload["plan"]))
-        self.assertEqual(4, len(payload["plan"][0]))
-        self.assertEqual(8, payload["max_games_count"])
 
     def test_schedule_v3_uses_shape_parameters(self):
         response = self.client.post(

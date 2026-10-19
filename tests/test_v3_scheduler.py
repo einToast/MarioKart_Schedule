@@ -231,7 +231,8 @@ class SchedulerV3Tests(unittest.TestCase):
 
                 if rng.random() < 0.4:
                     move[0](*move[1])
-                    self.assertEqual(before, (state.score(), state.energy))
+                    after = state.score(), state.energy
+                    self.assertEqual(before, after)
                 moves += 1
             self.assertGreater(moves, 100)
 
@@ -367,8 +368,9 @@ class SchedulerV3Tests(unittest.TestCase):
         self.assertEqual(8, make_optimizer(40, 8)._ideal_score[1])
 
     def test_fewer_teams_than_a_game_needs_raise_value_error(self):
+        teams_3 = create_team_list(3)
         with self.assertRaises(ValueError):
-            create_plan(create_team_list(3), teams_per_game=4)
+            create_plan(teams_3, teams_per_game=4)
 
     def test_one_team_short_of_a_full_round(self):
         plan = create_plan(create_team_list(15))

@@ -47,6 +47,12 @@ pip install -r requirements.txt
 python src/webserver.py
 ```
 
+ `requirements.txt` is generated from `requirements.in`. Regenerate it with:
+
+```bash
+pip-compile --generate-hashes --output-file=requirements.txt --strip-extras requirements.in
+```
+
 The service listens on `http://127.0.0.1:8000` by default. To change that, set `FLASK_RUN_HOST` and `FLASK_RUN_PORT`.
 
 ### Run the tests
