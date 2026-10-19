@@ -459,11 +459,7 @@ class ScheduleOptimizer:
         duration = max(deadline - started_at, 1e-9)
         excellent = self._is_excellent(best_score)
 
-        while not excellent:
-            now = time.monotonic()
-            if now >= deadline:
-                break
-
+        while not excellent and (now := time.monotonic()) < deadline:
             pos_a = None
             if rng.random() < TARGETED_MOVE_SHARE:
                 pos_a = state.repeated_pair_position(rng)

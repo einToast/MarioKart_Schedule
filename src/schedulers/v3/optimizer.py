@@ -20,6 +20,16 @@ FIELD_SWAP_SHARE = 0.1
 DOUBLE_SWAP_SHARE = 0.3
 TARGETED_MOVE_SHARE = 0.5
 DEADLINE_CHECK_INTERVAL = 256
+COOLING = math.log(END_TEMPERATURE / START_TEMPERATURE)
+
+FIELD_SWAP = "field_swap"
+SLOT_SWAP = "slot_swap"
+DOUBLE_SWAP = "double_swap"
+
+ANNEAL = "anneal"
+START_CLIMBING = "start_climbing"
+CLIMB = "climb"
+STOP = "stop"
 
 
 class ScheduleOptimizer:
@@ -502,72 +512,94 @@ class ScheduleOptimizer:
             iterations = self.max_iterations
         state = PlanState(self.team_order, plan, self._free_duels)
         best_score = state.score()
-        best_plan = state.snapshot()
         if self._is_excellent(best_score):
-            return self._to_teams(best_plan)
+            return self._to_teams(state.snapshot())
+        schedule = _AnnealingSchedule(iterations, deadline)
+        return self._to_teams(self._search(state, rng, schedule, best_score))
 
+    def _search(self, state, rng, schedule, best_score):
         allowed_round_duplicates = max(0, self.capacity_per_round - len(self.teams))
-        started_at = time.monotonic()
-        duration = max(deadline - started_at, 1e-9)
-        cooling = math.log(END_TEMPERATURE / START_TEMPERATURE)
-        temperature = START_TEMPERATURE
-        annealing = True
+        best_plan = state.snapshot()
         best_energy = state.energy
         current_score = best_score
-        random_value = rng.random
 
-        for iteration in range(iterations):
+        for iteration in range(schedule.iterations):
             if iteration % DEADLINE_CHECK_INTERVAL == 0:
-                elapsed = (time.monotonic() - started_at) / duration
-                if elapsed >= 1.0:
+                phase = schedule.update(iteration)
+                if phase == STOP:
                     break
-                progress = max(iteration / iterations, elapsed) / ANNEAL_SHARE
-                if progress < 1.0:
-                    temperature = START_TEMPERATURE * math.exp(cooling * progress)
-                elif annealing:
-                    annealing = False
+                if phase == START_CLIMBING:
                     state = PlanState(
                         self.team_order, self._to_teams(best_plan), self._free_duels
                     )
                     current_score = best_score
 
-            move = self._pick_move(state, rng, allowed_round_duplicates)
-            if move is None:
+            new_score = self._try_move(
+                state,
+                rng,
+                allowed_round_duplicates,
+                schedule.temperature,
+                best_energy,
+                current_score,
+            )
+            if new_score is None:
                 continue
+            best_energy = state.energy
+            current_score = new_score
+            if new_score >= best_score:
+                continue
+            best_score = new_score
+            best_plan = state.snapshot()
+            if self._is_excellent(best_score):
+                break
 
-            old_energy = state.energy
+        return best_plan
+
+    def _try_move(
+        self,
+        state,
+        rng,
+        allowed_round_duplicates,
+        temperature,
+        best_energy,
+        current_score,
+    ):
+        """Apply a random move and return the new score if it is worth one.
+
+        With a ``temperature`` the move anneals on ``PlanState.energy`` and is
+        scored only if the energy does not exceed ``best_energy``; without one
+        it is undone if it makes ``current_score`` worse. Returns ``None`` if
+        there is no move, the move is undone, or it is not scored.
+        """
+        move = self._pick_move(state, rng, allowed_round_duplicates)
+        if move is None:
+            return None
+
+        old_energy = state.energy
+        self._apply_move(state, move)
+        if temperature is None:
+            new_score = state.score()
+            if new_score > current_score:
+                self._apply_move(state, move)
+                return None
+            return new_score
+
+        delta = state.energy - old_energy
+        if delta > 0 and rng.random() >= math.exp(-delta / temperature):
             self._apply_move(state, move)
-            if annealing:
-                delta = state.energy - old_energy
-                if delta > 0 and random_value() >= math.exp(-delta / temperature):
-                    self._apply_move(state, move)
-                    continue
-                if state.energy > best_energy:
-                    continue
-                best_energy = state.energy
-                new_score = state.score()
-            else:
-                new_score = state.score()
-                if new_score > current_score:
-                    self._apply_move(state, move)
-                    continue
-                current_score = new_score
-
-            if new_score < best_score:
-                best_score = new_score
-                best_plan = state.snapshot()
-                if self._is_excellent(best_score):
-                    break
-
-        return self._to_teams(best_plan)
+            return None
+        if state.energy > best_energy:
+            return None
+        return state.score()
 
     def _pick_move(self, state, rng, allowed_round_duplicates):
         """Pick a random move for ``_apply_move``.
 
         Returns ``(round, field_a, field_b)`` for a swap of two whole fields,
-        ``(pos_a, pos_b)`` for a swap of two team slots,
-        ``(pos_a, pos_b, pos_c, pos_d)`` for a double swap, or ``None`` if the
-        chosen move is not possible.
+        ``(pos_a, pos_b)`` for a swap of two team slots, or
+        ``(pos_a, pos_b, pos_c, pos_d)`` for a double swap, each tagged with
+        its kind as ``(kind, args)``, or ``None`` if the chosen move is not
+        possible.
         """
         pos_a = None
         if self.number_fields > 1:
@@ -578,7 +610,7 @@ class ScheduleOptimizer:
                 field_b = int(rng.random() * (self.number_fields - 1))
                 if field_b >= field_a:
                     field_b += 1
-                return round_idx, field_a, field_b
+                return FIELD_SWAP, (round_idx, field_a, field_b)
             double_swap = choice < FIELD_SWAP_SHARE + DOUBLE_SWAP_SHARE
         else:
             double_swap = False
@@ -592,7 +624,7 @@ class ScheduleOptimizer:
         pos_b = self._random_position(rng)
         if not state.swap_is_valid(pos_a, pos_b, allowed_round_duplicates):
             return None
-        return pos_a, pos_b
+        return SLOT_SWAP, (pos_a, pos_b)
 
     def _pick_double_swap(self, state, rng, pos_a):
         """Two slot swaps that leave every team's field counts unchanged.
@@ -622,7 +654,7 @@ class ScheduleOptimizer:
                 pos_c = (other_round, field_b, other_plan[field_b].index(team_a))
                 pos_d = (other_round, field_a, other_plan[field_a].index(team_b))
                 if state.swap_is_valid(pos_c, pos_d, 0):
-                    return pos_a, pos_b, pos_c, pos_d
+                    return DOUBLE_SWAP, (pos_a, pos_b, pos_c, pos_d)
         return None
 
     def _random_position(self, rng):
@@ -635,13 +667,14 @@ class ScheduleOptimizer:
     @staticmethod
     def _apply_move(state, move):
         """Apply a move from ``_pick_move``; applying it again undoes it."""
-        if len(move) == 3:
-            state.swap_fields(*move)
-        elif len(move) == 4:
-            state.swap(move[0], move[1])
-            state.swap(move[2], move[3])
+        kind, args = move
+        if kind == FIELD_SWAP:
+            state.swap_fields(*args)
+        elif kind == DOUBLE_SWAP:
+            state.swap(args[0], args[1])
+            state.swap(args[2], args[3])
         else:
-            state.swap(*move)
+            state.swap(*args)
 
     def _to_teams(self, index_plan):
         """Convert a plan of team indices back to the original team objects."""
@@ -688,3 +721,30 @@ class ScheduleOptimizer:
                 counts[team] += 1
         values = [counts[team] for team in self.teams]
         return max(values) - min(values)
+
+
+class _AnnealingSchedule:
+    """Temperature of ``local_improve`` and when it stops annealing or at all."""
+
+    def __init__(self, iterations, deadline):
+        self.iterations = iterations
+        self.started_at = time.monotonic()
+        self.duration = max(deadline - self.started_at, 1e-9)
+        self.temperature = START_TEMPERATURE
+
+    def update(self, iteration):
+        """Return the search phase at ``iteration`` and update the temperature.
+
+        ``temperature`` is ``None`` once annealing is over.
+        """
+        elapsed = (time.monotonic() - self.started_at) / self.duration
+        if elapsed >= 1.0:
+            return STOP
+        if self.temperature is None:
+            return CLIMB
+        progress = max(iteration / self.iterations, elapsed) / ANNEAL_SHARE
+        if progress < 1.0:
+            self.temperature = START_TEMPERATURE * math.exp(COOLING * progress)
+            return ANNEAL
+        self.temperature = None
+        return START_CLIMBING

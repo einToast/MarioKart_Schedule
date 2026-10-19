@@ -15,7 +15,12 @@ from schedulers.v4.generate_gameplay_lists import (
     generate_plan,
     get_unrated_games,
 )
-from schedulers.v4.optimizer import ScheduleOptimizer
+from schedulers.v4.optimizer import (
+    DOUBLE_SWAP,
+    FIELD_SWAP,
+    SLOT_SWAP,
+    ScheduleOptimizer,
+)
 from schedulers.v4.plan_state import PlanState
 from schedulers.v4.scheduler import create_plan
 from schedulers.v4.utils import field_share_bounds, flatten, resolve_field_sizes
@@ -327,12 +332,13 @@ class SchedulerV4Tests(unittest.TestCase):
             move = optimizer._pick_move(state, rng, 0)
             if move is None:
                 continue
-            if len(move) == 3:
-                self.assertEqual(field_sizes[move[1]], field_sizes[move[2]])
-            kinds.add(len(move))
+            kind, args = move
+            if kind == FIELD_SWAP:
+                self.assertEqual(field_sizes[args[1]], field_sizes[args[2]])
+            kinds.add(kind)
             optimizer._apply_move(state, move)
 
-        self.assertEqual({2, 3, 4}, kinds)
+        self.assertEqual({FIELD_SWAP, SLOT_SWAP, DOUBLE_SWAP}, kinds)
         self.assertEqual(0, state.duplicate_total)
         for round_plan in state.plan:
             self.assertEqual(field_sizes, [len(field) for field in round_plan])
@@ -345,7 +351,7 @@ class SchedulerV4Tests(unittest.TestCase):
         self.assertEqual([], optimizer._equal_size_fields)
         for _ in range(2000):
             move = optimizer._pick_move(state, rng, 0)
-            self.assertTrue(move is None or len(move) != 3)
+            self.assertTrue(move is None or move[0] != FIELD_SWAP)
 
     def test_double_swap_keeps_field_counts(self):
         optimizer = make_optimizer(16, [4, 4, 2, 2])
