@@ -4,7 +4,7 @@ Flask webserver that generates balanced tournament schedules for 4-player Mario 
 
 ## Tech Stack
 
-- Python 3.14
+- Python 3.15
 - Flask, served by Gunicorn in Docker
 - Docker
 
@@ -36,7 +36,7 @@ All schedulers return the same plan shape, so the API treats them interchangeabl
 
 ### Prerequisites
 
-- Python 3.14
+- Python 3.15
 
 ### Run locally
 
@@ -63,7 +63,7 @@ python -m unittest discover -s tests
 
 ### Dev container
 
-The repo includes a VS Code dev container (Python 3.14). It creates `.venv`, installs the requirements and forwards port 8000.
+The repo includes a VS Code dev container (Python 3.15). It creates `.venv`, installs the requirements and forwards port 8000.
 
 ## API
 
