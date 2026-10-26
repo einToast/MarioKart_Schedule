@@ -122,7 +122,7 @@ def main():
     parser.add_argument("--fields", type=int, default=4)
     parser.add_argument("--rounds", type=int, default=8)
     parser.add_argument("--teams-per-game", type=int, default=4)
-    parser.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
+    parser.add_argument("--max-seconds", type=float, default=None)
     parser.add_argument("--compare-old", action="store_true")
     args = parser.parse_args()
 
