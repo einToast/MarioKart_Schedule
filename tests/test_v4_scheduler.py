@@ -347,6 +347,36 @@ class SchedulerV4Tests(unittest.TestCase):
         for round_plan in state.plan:
             self.assertEqual(field_sizes, [len(field) for field in round_plan])
 
+    def test_move_deltas_match_the_energy_change(self):
+        for num_teams, field_sizes in ((14, [4, 4, 4, 4]), (16, [4, 3, 2, 2]), (9, [4, 4, 2])):
+            optimizer = make_optimizer(num_teams, field_sizes)
+            state = PlanState(optimizer.team_order, build_candidate(optimizer))
+            rng = random.Random(2)
+            positions = [
+                (round_idx, field_idx, team_idx)
+                for round_idx in range(8)
+                for field_idx, size in enumerate(field_sizes)
+                for team_idx in range(size)
+            ]
+            allowed_duplicates = max(0, sum(field_sizes) - num_teams)
+            moves = 0
+            for _ in range(3000):
+                before = state.energy
+                if rng.random() < 0.2 and optimizer._equal_size_fields:
+                    field_a, field_b = rng.choice(optimizer._equal_size_fields)
+                    args = (rng.randrange(8), field_a, field_b)
+                    delta = state.swap_fields_delta(*args)
+                    state.swap_fields(*args)
+                else:
+                    pos_a, pos_b = rng.choice(positions), rng.choice(positions)
+                    if not state.swap_is_valid(pos_a, pos_b, allowed_duplicates):
+                        continue
+                    delta = state.swap_delta(pos_a, pos_b)
+                    state.swap(pos_a, pos_b)
+                self.assertEqual(before + delta, state.energy)
+                moves += 1
+            self.assertGreater(moves, 100)
+
     def test_fields_of_different_sizes_are_never_swapped(self):
         optimizer = make_optimizer(12, [4, 2])
         state = PlanState(optimizer.team_order, build_candidate(optimizer))
