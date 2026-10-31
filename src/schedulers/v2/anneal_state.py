@@ -221,21 +221,20 @@ class AnnealState:
         costs = self.duel_cost
         field_x = self.field_of[round_a][team_a]
         field_y = self.field_of[round_b][team_a]
-        plan_a = self.plan[round_a]
-        plan_b = self.plan[round_b]
         # a leaves group_ax and joins group_ay; in round b it leaves group_by
         # and joins group_bx. b does the opposite.
-        group_ax = plan_a[field_x] if field_x != SITTING else ()
-        group_ay = plan_a[field_y] if field_y != SITTING else ()
-        group_bx = plan_b[field_x] if field_x != SITTING else ()
-        group_by = plan_b[field_y] if field_y != SITTING else ()
+        group_ax = self._group(round_a, field_x)
+        group_ay = self._group(round_a, field_y)
+        group_bx = self._group(round_b, field_x)
+        group_by = self._group(round_b, field_y)
+        round_a_teams = (team_a, team_b, *group_ax, *group_ay)
         row_a = team_a * team_count
         row_b = team_b * team_count
         delta = 0.0
         for other in group_ax:
             if other == team_a or other in group_bx:
                 continue
-            change = -2 if other in group_by else -1
+            change = -1 - (other in group_by)
             count_a = pairs[row_a + other]
             count_b = pairs[row_b + other]
             delta += costs[count_a + change] - costs[count_a]
@@ -243,20 +242,20 @@ class AnnealState:
         for other in group_ay:
             if other == team_b or other in group_by:
                 continue
-            change = 2 if other in group_bx else 1
+            change = 1 + (other in group_bx)
             count_a = pairs[row_a + other]
             count_b = pairs[row_b + other]
             delta += costs[count_a + change] - costs[count_a]
             delta += costs[count_b - change] - costs[count_b]
         for other in group_bx:
-            if other == team_b or other in group_ax or other in group_ay:
+            if other in round_a_teams:
                 continue
             count_a = pairs[row_a + other]
             count_b = pairs[row_b + other]
             delta += costs[count_a + 1] - costs[count_a]
             delta += costs[count_b - 1] - costs[count_b]
         for other in group_by:
-            if other == team_a or other in group_ax or other in group_ay:
+            if other in round_a_teams:
                 continue
             count_a = pairs[row_a + other]
             count_b = pairs[row_b + other]
@@ -321,19 +320,27 @@ class AnnealState:
 
     def conflict_slots(self):
         """All slots of teams in a duel played more often than free."""
-        team_count = self.team_count
-        pairs = self.pair_counts
-        free = self.free
         slots = []
         for round_idx, round_plan in enumerate(self.plan):
             for field_idx, group in enumerate(round_plan):
                 for idx, team in enumerate(group):
-                    row = team * team_count
-                    for other in group:
-                        if other != team and pairs[row + other] > free:
-                            slots.append((round_idx, field_idx, idx))
-                            break
+                    if self._repeats_a_duel(team, group):
+                        slots.append((round_idx, field_idx, idx))
         return slots
+
+    def _repeats_a_duel(self, team, group):
+        """Whether ``team`` meets a team of ``group`` more often than free."""
+        pairs = self.pair_counts
+        row = team * self.team_count
+        return any(
+            other != team and pairs[row + other] > self.free for other in group
+        )
+
+    def _group(self, round_idx, field_idx):
+        """Teams on a field in a round; none for ``SITTING``."""
+        if field_idx == SITTING:
+            return ()
+        return self.plan[round_idx][field_idx]
 
     def _field_trade_delta(self, team_a, field_a, team_b, field_b):
         """Team a moves from field a to field b, team b the other way."""

@@ -25,6 +25,11 @@ TABU_TENURE = 6
 EPSILON = 1e-9
 
 
+def _accepted(delta, temperature, rand):
+    """Metropolis rule: always take a better move, a worse one by chance."""
+    return delta <= 0 or rand() < math.exp(-delta / temperature)
+
+
 class ScheduleOptimizer:
     """Simulated annealing on ``PlanState.energy``, then a short tabu search.
 
@@ -171,17 +176,10 @@ class ScheduleOptimizer:
         Returns the best plan and its energy; ``state`` keeps the last plan.
         """
         rand = rng.random
-        exp = math.exp
-        rounds = self.number_rounds
-        fields = self.number_fields
-        slots = self._slots
-        slot_count = len(slots)
-        plan_slots = rounds * slot_count
-        other_slots = self._other_slots
-        equal_fields = self._equal_size_fields
-        field_swap_share = FIELD_SWAP_SHARE if equal_fields else 0.0
-        trade_share = field_swap_share + (TRADE_SHARE if rounds > 1 else 0.0)
-        cross_share = CROSS_ROUND_SHARE if self.has_sitting else 0.0
+        field_swap_share = FIELD_SWAP_SHARE if self._equal_size_fields else 0.0
+        trade_share = field_swap_share + (
+            TRADE_SHARE if self.number_rounds > 1 else 0.0
+        )
         cooling = math.log(END_TEMPERATURE / start_temperature)
 
         energy = state.energy
@@ -194,49 +192,17 @@ class ScheduleOptimizer:
                 if best_energy <= lower_bound + EPSILON or time.monotonic() > deadline:
                     break
                 progress = iteration / iterations
-                temperature = start_temperature * exp(cooling * progress)
+                temperature = start_temperature * math.exp(cooling * progress)
 
             choice = rand()
             if choice < field_swap_share:
-                round_idx = int(rand() * rounds)
-                field_a, field_b = equal_fields[int(rand() * len(equal_fields))]
-                delta = state.field_swap_delta(round_idx, field_a, field_b)
-                if delta > 0 and rand() >= exp(-delta / temperature):
-                    continue
-                state.field_swap(round_idx, field_a, field_b)
+                delta = self._try_field_swap(state, rand, temperature)
             elif choice < trade_share:
-                move = self._pick_trade(state, rand)
-                if move is None:
-                    continue
-                delta = state.trade_delta(*move)
-                if delta > 0 and rand() >= exp(-delta / temperature):
-                    continue
-                state.trade(*move)
+                delta = self._try_trade(state, rand, temperature)
             else:
-                slot = state.conflict_slot(rand) if rand() < TARGETED_SHARE else None
-                if slot is None:
-                    pick = int(rand() * plan_slots)
-                    round_a = pick // slot_count
-                    field_a, idx_a = slots[pick % slot_count]
-                else:
-                    round_a, field_a, idx_a = slot
-                move = None
-                if cross_share and rand() < cross_share:
-                    move = self._pick_cross(state, rand, round_a, field_a, idx_a)
-                if move is not None:
-                    delta = state.cross_delta(*move)
-                    if delta > 0 and rand() >= exp(-delta / temperature):
-                        continue
-                    state.cross(*move)
-                elif fields > 1:
-                    partners = other_slots[field_a]
-                    field_b, idx_b = partners[int(rand() * len(partners))]
-                    delta = state.swap_delta(round_a, field_a, idx_a, field_b, idx_b)
-                    if delta > 0 and rand() >= exp(-delta / temperature):
-                        continue
-                    state.swap(round_a, field_a, idx_a, field_b, idx_b)
-                else:
-                    continue
+                delta = self._try_slot_move(state, rand, temperature)
+            if delta is None:
+                continue
 
             energy += delta
             if energy < best_energy - EPSILON:
@@ -245,6 +211,63 @@ class ScheduleOptimizer:
 
         state.energy = energy
         return best_plan, best_energy
+
+    def _try_field_swap(self, state, rand, temperature):
+        """Apply a random ``PlanState.field_swap`` if accepted; return its delta."""
+        equal_fields = self._equal_size_fields
+        round_idx = int(rand() * self.number_rounds)
+        field_a, field_b = equal_fields[int(rand() * len(equal_fields))]
+        delta = state.field_swap_delta(round_idx, field_a, field_b)
+        if not _accepted(delta, temperature, rand):
+            return None
+        state.field_swap(round_idx, field_a, field_b)
+        return delta
+
+    def _try_trade(self, state, rand, temperature):
+        """Apply a random ``PlanState.trade`` if accepted; return its delta."""
+        move = self._pick_trade(state, rand)
+        if move is None:
+            return None
+        delta = state.trade_delta(*move)
+        if not _accepted(delta, temperature, rand):
+            return None
+        state.trade(*move)
+        return delta
+
+    def _try_slot_move(self, state, rand, temperature):
+        """Move the team of a slot by ``cross`` or ``swap`` if accepted.
+
+        Returns the delta of the applied move, or ``None``.
+        """
+        slot = state.conflict_slot(rand) if rand() < TARGETED_SHARE else None
+        if slot is None:
+            slot = self._random_slot(rand)
+        round_a, field_a, idx_a = slot
+        move = None
+        if self.has_sitting and rand() < CROSS_ROUND_SHARE:
+            move = self._pick_cross(state, rand, round_a, field_a, idx_a)
+        if move is not None:
+            delta = state.cross_delta(*move)
+            if not _accepted(delta, temperature, rand):
+                return None
+            state.cross(*move)
+            return delta
+        if self.number_fields == 1:
+            return None
+        partners = self._other_slots[field_a]
+        field_b, idx_b = partners[int(rand() * len(partners))]
+        delta = state.swap_delta(round_a, field_a, idx_a, field_b, idx_b)
+        if not _accepted(delta, temperature, rand):
+            return None
+        state.swap(round_a, field_a, idx_a, field_b, idx_b)
+        return delta
+
+    def _random_slot(self, rand):
+        """Uniformly random ``(round, field, index)`` of the plan."""
+        slot_count = len(self._slots)
+        pick = int(rand() * (self.number_rounds * slot_count))
+        field_idx, idx = self._slots[pick % slot_count]
+        return pick // slot_count, field_idx, idx
 
     def _pick_cross(self, state, rand, round_a, field_a, idx_a):
         """Move for ``PlanState.cross``, or ``None`` if the team plays both rounds."""
@@ -321,8 +344,7 @@ class ScheduleOptimizer:
             moved = self._apply_polish_move(state, move)
             energy += delta
             until = step + TABU_TENURE + int(rng.random() * 3)
-            for team_round in moved:
-                tabu[team_round] = until
+            tabu.update(dict.fromkeys(moved, until))
             if energy < best_energy - EPSILON:
                 best_energy = energy
                 best_plan = state.snapshot()
@@ -331,34 +353,40 @@ class ScheduleOptimizer:
 
     def _best_polish_move(self, state, rng, slots, tabu, step, aspiration):
         """Best ``(delta, move)`` for ``slots``; ties are broken at random."""
-        plan = state.plan
         best_delta = math.inf
         best_move = None
         ties = 0
-        for round_a, field_a, idx_a in slots:
-            team_a = plan[round_a][field_a][idx_a]
-            for move, teams_rounds in self._polish_moves(
-                state, rng, round_a, field_a, idx_a, team_a
+        for move, teams_rounds in self._polish_candidates(state, rng, slots):
+            delta = self._polish_delta(state, move)
+            if delta >= aspiration - EPSILON and any(
+                tabu.get(team_round, -1) > step for team_round in teams_rounds
             ):
-                if move[0] == "swap":
-                    delta = state.swap_delta(*move[1:])
-                else:
-                    delta = state.cross_delta(*move[1:])
-                if delta >= aspiration - EPSILON and any(
-                    tabu.get(team_round, -1) > step for team_round in teams_rounds
-                ):
-                    continue
-                if delta < best_delta - EPSILON:
-                    best_delta = delta
+                continue
+            if delta < best_delta - EPSILON:
+                best_delta = delta
+                best_move = move
+                ties = 1
+            elif delta < best_delta + EPSILON:
+                ties += 1
+                if rng.random() * ties < 1:
                     best_move = move
-                    ties = 1
-                elif delta < best_delta + EPSILON:
-                    ties += 1
-                    if rng.random() * ties < 1:
-                        best_move = move
         if best_move is None:
             return None
         return best_delta, best_move
+
+    def _polish_candidates(self, state, rng, slots):
+        """``_polish_moves`` of the teams in all ``slots``."""
+        plan = state.plan
+        for round_a, field_a, idx_a in slots:
+            team_a = plan[round_a][field_a][idx_a]
+            yield from self._polish_moves(state, rng, round_a, field_a, idx_a, team_a)
+
+    @staticmethod
+    def _polish_delta(state, move):
+        """Energy change of a move of ``_polish_moves``."""
+        if move[0] == "swap":
+            return state.swap_delta(*move[1:])
+        return state.cross_delta(*move[1:])
 
     def _polish_moves(self, state, rng, round_a, field_a, idx_a, team_a):
         """Swaps inside the round and with teams that sit the round out.
