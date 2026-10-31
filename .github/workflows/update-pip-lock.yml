@@ -1,0 +1,65 @@
+name: Update pip requirements
+
+on:
+  schedule:
+    - cron: "23 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-lockfile:
+    name: Update ${{ matrix.name }} requirements
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: app
+            input: requirements.in
+            output: requirements.txt
+            allow-unsafe: false
+            branch: automation/pip-requirements-update
+          - name: pip-tools
+            input: requirements-pip-tools.in
+            output: requirements-pip-tools.txt
+            allow-unsafe: true
+            branch: automation/pip-tools-requirements-update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.15'
+
+      - name: Install pip-tools
+        run: python -m pip install --require-hashes --only-binary :all: -r requirements-pip-tools.txt
+
+      - name: Update lockfile
+        env:
+          INPUT_FILE: ${{ matrix.input }}
+          OUTPUT_FILE: ${{ matrix.output }}
+          ALLOW_UNSAFE: ${{ matrix.allow-unsafe }}
+        run: |
+          options=()
+          if [ "$ALLOW_UNSAFE" = "true" ]; then
+            options+=(--allow-unsafe)
+          fi
+          pip-compile --upgrade --generate-hashes "${options[@]}" --output-file="$OUTPUT_FILE" --strip-extras "$INPUT_FILE"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore(deps): update ${{ matrix.name }} pip requirements"
+          title: "chore(deps): update ${{ matrix.name }} pip requirements"
+          body: |
+            Monthly refresh of the pip dependencies in `${{ matrix.output }}`.
+            Generated using `pip-compile --upgrade --generate-hashes`.
+          branch: ${{ matrix.branch }}
+          add-paths: ${{ matrix.output }}
+          delete-branch: true

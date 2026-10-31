@@ -575,19 +575,33 @@ class ScheduleOptimizer:
         if move is None:
             return None
 
-        old_energy = state.energy
-        self._apply_move(state, move)
         if temperature is None:
+            self._apply_move(state, move)
             new_score = state.score()
             if new_score > current_score:
                 self._apply_move(state, move)
                 return None
             return new_score
 
-        delta = state.energy - old_energy
+        kind, args = move
+        if kind == FIELD_SWAP:
+            delta = state.swap_fields_delta(*args)
+        elif kind == DOUBLE_SWAP:
+            old_energy = state.energy
+            state.swap(args[0], args[1])
+            delta = state.energy - old_energy + state.swap_delta(args[2], args[3])
+        else:
+            delta = state.swap_delta(*args)
         if delta > 0 and rng.random() >= math.exp(-delta / temperature):
-            self._apply_move(state, move)
+            if kind == DOUBLE_SWAP:
+                state.swap(args[0], args[1])
             return None
+        if kind == FIELD_SWAP:
+            state.swap_fields(*args)
+        elif kind == DOUBLE_SWAP:
+            state.swap(args[2], args[3])
+        else:
+            state.swap(*args)
         if state.energy > best_energy:
             return None
         return state.score()

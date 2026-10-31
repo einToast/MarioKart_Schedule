@@ -13,6 +13,9 @@ from schedulers.v3.generate_gameplay_lists import (
 from schedulers.v4.generate_gameplay_lists import (
     generate_plan as generate_plan_v4,
 )
+from schedulers.v5.generate_gameplay_lists import (
+    generate_plan as generate_plan_v5,
+)
 
 app = Flask(__name__)
 
@@ -21,9 +24,10 @@ SCHEDULERS = {
     2: generate_plan_v2,
     3: generate_plan_v3,
     4: generate_plan_v4,
+    5: generate_plan_v5,
 }
 # Versions that accept a list with one num_teams_per_game entry per field.
-PER_FIELD_VERSIONS = {4}
+PER_FIELD_VERSIONS = {4, 5}
 
 
 def parse_teams_per_game(value, version):
@@ -51,7 +55,7 @@ def schedule():
     if "num_teams" not in data:
         return jsonify({"error": "num_teams is required"}), 400
     if version not in SCHEDULERS:
-        return jsonify({"error": "version must be one of: 1, 2, 3, 4"}), 400
+        return jsonify({"error": "version must be one of: 1, 2, 3, 4, 5"}), 400
 
     try:
         num_teams = int(data["num_teams"])

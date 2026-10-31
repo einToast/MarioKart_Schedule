@@ -1,4 +1,6 @@
-DEFAULT_MAX_SECONDS = 0.35
+DEFAULT_MAX_ITERATIONS = 500_000
+DEFAULT_MAX_SECONDS = 8.0
+DEFAULT_SWAP_SEARCH_SECONDS = 1.0
 
 
 def resolve_seed(seed, num_teams, number_fields, number_rounds, teams_per_game):

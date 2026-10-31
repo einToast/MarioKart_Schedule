@@ -17,6 +17,8 @@ from schedulers.v2.generate_gameplay_lists import (
     get_unrated_games,
 )
 from schedulers.v2.optimizer import ScheduleOptimizer
+from schedulers.v2.anneal_state import AnnealState
+from schedulers.v2.annealer import Annealer
 from schedulers.v2.plan_state import PlanState
 from schedulers.v2.scheduler import create_plan
 from schedulers.v2.utils import flatten
@@ -138,7 +140,7 @@ class SchedulerV2Tests(unittest.TestCase):
             number_rounds=8,
             teams_per_game=4,
             seed=77,
-            max_seconds=0.15,
+            max_iterations=20_000,
         )
         direct_plan = create_plan(
             create_team_list(16),
@@ -146,7 +148,7 @@ class SchedulerV2Tests(unittest.TestCase):
             number_rounds=8,
             teams_per_game=4,
             seed=77,
-            max_seconds=0.15,
+            max_iterations=20_000,
         )
 
         self.assertEqual(direct_plan, wrapper_plan)
@@ -245,6 +247,83 @@ class SchedulerV2Tests(unittest.TestCase):
         # 20 teams: 8 of them play 7 games (21 opponent slots vs 19 opponents),
         # which forces at least 8 repeated pairs, more than pair counting gives.
         self.assertEqual(8, make_optimizer(20, 4)._ideal_score[5])
+
+    def test_annealer_keeps_every_team_once_per_round(self):
+        plan = create_plan(create_team_list(18), seed=3, max_iterations=50_000)
+
+        metrics = collect_metrics(plan, 18, 4, 8)
+        self.assert_valid_metrics(metrics, 18, 4, 8, max_duel_repeat=2)
+        self.assertEqual([], metrics["missing switch-1 teams"])
+
+    def test_annealer_stops_at_the_lower_bound(self):
+        started_at = time.monotonic()
+        plan = create_plan(create_team_list(30), seed=3)
+
+        self.assertLess(time.monotonic() - started_at, 1.0)
+        metrics = collect_metrics(plan, 30, 4, 8)
+        self.assert_valid_metrics(metrics, 30, 4, 8, max_duel_repeat=1)
+
+    def test_annealer_move_deltas_match_the_new_energy(self):
+        annealer = Annealer(
+            teams=create_team_list(19),
+            number_fields=4,
+            number_rounds=8,
+            teams_per_game=4,
+            seed=1,
+            max_seconds=5.0,
+        )
+        plan, games = annealer._initial_plan(random.Random(2))
+        state = AnnealState(plan, 19, annealer.field_sizes, games)
+        rng = random.Random(4)
+        applied = 0
+        for _ in range(2000):
+            choice = rng.random()
+            round_a = rng.randrange(8)
+            field_a, idx_a = rng.choice(annealer._slots)
+            if choice < 0.3:
+                kind, move = "trade", annealer._pick_trade(state, rng.random)
+            elif choice < 0.6:
+                kind = "cross"
+                move = annealer._pick_cross(state, rng.random, round_a, field_a, idx_a)
+            else:
+                field_b, idx_b = rng.choice(annealer._other_slots[field_a])
+                kind, move = "swap", (round_a, field_a, idx_a, field_b, idx_b)
+            if move is None:
+                continue
+            delta = getattr(state, kind + "_delta")(*move)
+            before = state.compute_energy()
+            getattr(state, kind)(*move)
+            self.assertAlmostEqual(before + delta, state.compute_energy())
+            applied += 1
+        self.assertGreater(applied, 500)
+
+    def test_tidy_fields_keeps_duels_and_never_worsens_field_use(self):
+        annealer = Annealer(
+            teams=create_team_list(20),
+            number_fields=4,
+            number_rounds=8,
+            teams_per_game=4,
+            seed=1,
+            max_seconds=5.0,
+        )
+        plan, _ = annealer._initial_plan(random.Random(3))
+        counts = [[0] * 4 for _ in range(20)]
+        for round_plan in plan:
+            for field_idx, game in enumerate(round_plan):
+                for team in game:
+                    counts[team][field_idx] += 1
+        key = annealer._field_use_key(counts)
+        games = [sorted(map(sorted, round_plan)) for round_plan in plan]
+
+        annealer._tidy_fields(plan, time.monotonic() + 5.0)
+
+        counts = [[0] * 4 for _ in range(20)]
+        for round_plan in plan:
+            for field_idx, game in enumerate(round_plan):
+                for team in game:
+                    counts[team][field_idx] += 1
+        self.assertLess(annealer._field_use_key(counts), key)
+        self.assertEqual(games, [sorted(map(sorted, round_plan)) for round_plan in plan])
 
     def test_tiny_fixed_shape_is_not_supported(self):
         teams = create_team_list(3)

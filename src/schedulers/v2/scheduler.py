@@ -1,4 +1,10 @@
-from schedulers.v2.config import DEFAULT_MAX_SECONDS, resolve_seed
+from schedulers.v2.annealer import Annealer
+from schedulers.v2.config import (
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_SECONDS,
+    DEFAULT_SWAP_SEARCH_SECONDS,
+    resolve_seed,
+)
 from schedulers.v2.dummy_team import create_plan_with_dummy_team
 from schedulers.v2.optimizer import ScheduleOptimizer
 from schedulers.v2.utils import (
@@ -14,8 +20,16 @@ def create_plan(
     number_rounds=8,
     teams_per_game=4,
     seed=None,
-    max_seconds=DEFAULT_MAX_SECONDS,
+    max_seconds=None,
+    max_iterations=DEFAULT_MAX_ITERATIONS,
 ):
+    """Create a plan ``[round][field][team]``.
+
+    ``max_seconds`` limits the search; without it the annealer stops after
+    ``max_iterations`` (or ``DEFAULT_MAX_SECONDS``) and the swap search for
+    tournaments with fewer teams than seats per round after
+    ``DEFAULT_SWAP_SEARCH_SECONDS``.
+    """
     if not team_list:
         return []
     if number_fields <= 0 or number_rounds <= 0 or teams_per_game <= 0:
@@ -36,6 +50,20 @@ def create_plan(
         number_rounds,
         teams_per_game,
     )
+    # With enough teams to fill a round no team plays twice in one, and the
+    # annealer applies; smaller tournaments keep the swap search.
+    if len(teams) >= capacity_per_round:
+        return Annealer(
+            teams=teams,
+            number_fields=number_fields,
+            number_rounds=number_rounds,
+            teams_per_game=teams_per_game,
+            seed=resolved_seed,
+            max_seconds=DEFAULT_MAX_SECONDS if max_seconds is None else max_seconds,
+            max_iterations=max_iterations,
+        ).create_plan()
+    if max_seconds is None:
+        max_seconds = DEFAULT_SWAP_SEARCH_SECONDS
     if len(teams) + 1 == capacity_per_round:
         return create_plan_with_dummy_team(
             teams,

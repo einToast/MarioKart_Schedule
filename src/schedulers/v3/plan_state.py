@@ -119,6 +119,48 @@ class PlanState:
         self._enter(round_a, field_a, idx_a)
         self._enter(round_b, field_b, idx_b)
 
+    def swap_delta(self, pos_a, pos_b):
+        """Change of ``energy`` that ``swap(pos_a, pos_b)`` would cause."""
+        round_a, field_a, idx_a = pos_a
+        round_b, field_b, idx_b = pos_b
+        group_a = self.plan[round_a][field_a]
+        group_b = self.plan[round_b][field_b]
+        team_a = group_a[idx_a]
+        team_b = group_b[idx_b]
+        team_count = self.team_count
+        pairs = self.pair_counts
+        costs = self.pair_costs
+        delta = 0
+        # A team in both groups keeps its duels with a and b.
+        for other in group_a:
+            if other == team_a or other in group_b:
+                continue
+            delta -= costs[pairs[_key(team_a, other, team_count)] - 1]
+            delta += costs[pairs[_key(team_b, other, team_count)]]
+        for other in group_b:
+            if other == team_b or other in group_a:
+                continue
+            delta -= costs[pairs[_key(team_b, other, team_count)] - 1]
+            delta += costs[pairs[_key(team_a, other, team_count)]]
+        if field_a != field_b:
+            delta += self._field_change_delta(team_a, field_a, field_b)
+            delta += self._field_change_delta(team_b, field_b, field_a)
+        return delta
+
+    def swap_fields_delta(self, round_idx, field_a, field_b):
+        """Change of ``energy`` that ``swap_fields`` would cause."""
+        group_a = self.plan[round_idx][field_a]
+        group_b = self.plan[round_idx][field_b]
+        delta = 0
+        # A team on both fields keeps its field counts.
+        for team in group_a:
+            if team not in group_b:
+                delta += self._field_change_delta(team, field_a, field_b)
+        for team in group_b:
+            if team not in group_a:
+                delta += self._field_change_delta(team, field_b, field_a)
+        return delta
+
     def swap_fields(self, round_idx, field_a, field_b):
         """Swap two whole fields of a round; calling it again undoes it.
 
@@ -281,6 +323,29 @@ class PlanState:
         if count == self.max_field_repeat[team]:
             self.max_field_repeat[team] = max(counts)
 
+    def _field_change_delta(self, team, from_field, to_field):
+        """Energy change of ``team`` playing once less on one field, once more on another."""
+        counts = self.field_counts[team]
+        low = self.field_low[team]
+        high = self.field_high[team]
+        count = counts[from_field]
+        delta = -(count - 1) * FIELD_WEIGHT
+        if count <= low:
+            delta += FIELD_IMBALANCE_WEIGHT
+        elif count > high:
+            delta -= FIELD_IMBALANCE_WEIGHT
+        if count == 1 and from_field == 0:
+            delta += MISSING_SWITCH_WEIGHT
+        count = counts[to_field]
+        delta += count * FIELD_WEIGHT
+        if count < low:
+            delta -= FIELD_IMBALANCE_WEIGHT
+        elif count >= high:
+            delta += FIELD_IMBALANCE_WEIGHT
+        if count == 0 and to_field == 0:
+            delta -= MISSING_SWITCH_WEIGHT
+        return delta
+
     def _add_round(self, round_idx, team):
         counts = self.round_counts[round_idx]
         if counts[team]:
@@ -294,3 +359,9 @@ class PlanState:
         if counts[team]:
             self.round_duplicates[round_idx] -= 1
             self.duplicate_total -= 1
+
+
+def _key(team_a, team_b, team_count):
+    if team_a < team_b:
+        return team_a * team_count + team_b
+    return team_b * team_count + team_a

@@ -15,9 +15,10 @@ src/
   webserver.py              Flask app: /healthcheck and /schedule
   schedulers/
     v1/                     Original scheduler (randomized search with curated seeds)
-    v2/                     Time-boxed optimizer, default
+    v2/                     Fewest repeated duels first, default
     v3/                     Simulated annealing with a fixed iteration count
     v4/                     Like v3, with a number of teams per game for every field
+    v5/                     Simulated annealing from a random start, like v4 in its options
 tests/                      unittest suite (schedulers and API)
 Dockerfile                  Production image (Gunicorn)
 .github/workflows/          Tests, webserver smoke test, Docker build
@@ -28,9 +29,10 @@ All schedulers return the same plan shape, so the API treats them interchangeabl
 | Version | Approach |
 |---------|----------|
 | `1` | Repeated randomized search. Teams are paired by fewest prior meetings, and rounds are then reordered to balance Main Switch appearances. Uses curated starting seeds for 15 to 25 teams. |
-| `2` (default) | Builds a plan greedily with a cost function, then improves it with pairwise swaps for a fixed time budget (0.35 s by default). Output is deterministic for the same inputs. |
+| `2` (default) | Puts few repeated duels first and even field use second. With at least as many teams as one round has seats it uses the same kind of search as version `5`, with a fixed number of iterations, and gives the same plan for the same inputs on every machine. Smaller tournaments, where some teams play twice in a round, keep the older greedy build and swap search with a time budget (1 s by default). |
 | `3` | Starts like version `2`, then improves the plan with simulated annealing over team and field swaps for a fixed number of iterations. Puts even field use first: every team plays on every field the same number of times, give or take one, at the cost of a few more repeated duels than version `2`. Gives the same plan for the same inputs on every machine. |
 | `4` | Version `3` with a number of teams per game for every field, for example two Switches with 4 controllers and one with 2. A team plays on a field in proportion to its size: with 4 and 2 teams per game, about two thirds of its games are on the larger field. |
+| `5` | Takes the same options as version `4` and follows the same priorities (even field use first, then few repeated duels), but uses a new search: simulated annealing from a random start that prices every move before applying it, followed by a short tabu search. In the same time it repeats fewer duels than versions `3` and `4` in most setups, for example 20 teams on 4 Switches. Needs at least as many teams as one round has seats. Gives the same plan for the same inputs on every machine. |
 
 ## Getting Started
 
@@ -50,6 +52,7 @@ python src/webserver.py
  `requirements.txt` is generated from `requirements.in`. Regenerate it with:
 
 ```bash
+pip install --require-hashes --only-binary :all: -r requirements-pip-tools.txt
 pip-compile --generate-hashes --output-file=requirements.txt --strip-extras requirements.in
 ```
 
@@ -78,10 +81,10 @@ Request body (JSON):
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `num_teams` | int | required | Number of teams. |
-| `version` | int | `2` | Scheduler version, `1`, `2`, `3` or `4`. |
+| `version` | int | `3` | Scheduler version, `1`, `2`, `3`, `4` or `5`. |
 | `num_fields` | int | `4` | Fields (games) per round. |
 | `num_rounds` | int | `8` | Number of rounds. |
-| `num_teams_per_game` | int, or list of int for version `4` | `4` | Teams per field. Ignored by version `1`, which always uses 4. Version `4` also accepts a list with one entry per field, such as `[4, 4, 2]`; the first entry is the Main Switch field. |
+| `num_teams_per_game` | int, or list of int for versions `4` and `5` | `4` | Teams per field. Ignored by version `1`, which always uses 4. Versions `4` and `5` also accept a list with one entry per field, such as `[4, 4, 2]`; the first entry is the Main Switch field. |
 
 Example:
 
@@ -124,10 +127,10 @@ Every round of the plan then has fields with 4, 4 and 2 teams, and `num_teams_pe
 Errors return `400` with a JSON body:
 
 - `{"error": "num_teams is required"}`
-- `{"error": "version must be one of: 1, 2, 3, 4"}`
-- `{"error": "Invalid input parameters"}`, for example when the teams do not fit into the available game slots, or when `num_teams_per_game` is a list for a version below `4` or does not have one entry per field.
+- `{"error": "version must be one of: 1, 2, 3, 4, 5"}`
+- `{"error": "Invalid input parameters"}`, for example when the teams do not fit into the available game slots, when `num_teams_per_game` is a list for a version below `4` or does not have one entry per field, or when version `5` gets fewer teams than one round has seats.
 
-## Benchmarking (v2, v3, v4)
+## Benchmarking (v2 to v5)
 
 Measure schedule quality across team counts. Run from the repository root:
 
@@ -135,7 +138,7 @@ Measure schedule quality across team counts. Run from the repository root:
 PYTHONPATH=src python -m schedulers.v2.benchmark --team-min 15 --team-max 25
 ```
 
-Use `schedulers.v3.benchmark` for version `3` and `schedulers.v4.benchmark` for version `4`, which also takes one size per field, as in `--fields 3 --teams-per-game 4,4,2`. Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
+Use `schedulers.v3.benchmark` for version `3` and `schedulers.v4.benchmark` or `schedulers.v5.benchmark` for versions `4` and `5`, which also take one size per field, as in `--fields 3 --teams-per-game 4,4,2`. Add `--compare-old` to compare against v1. Other options are `--fields`, `--rounds`, `--teams-per-game` and `--max-seconds`.
 
 ## Docker
 
