@@ -38,7 +38,7 @@ jobs:
           python-version: '3.15'
 
       - name: Install pip-tools
-        run: python -m pip install --require-hashes --only-binary :all: -r requirements-pip-tools.txt
+        run: 'python -m pip install --require-hashes --only-binary :all: -r requirements-pip-tools.txt'
 
       - name: Update lockfile
         env:
