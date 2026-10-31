@@ -52,6 +52,7 @@ python src/webserver.py
  `requirements.txt` is generated from `requirements.in`. Regenerate it with:
 
 ```bash
+pip install --require-hashes --only-binary :all: -r requirements-pip-tools.txt
 pip-compile --generate-hashes --output-file=requirements.txt --strip-extras requirements.in
 ```
 
