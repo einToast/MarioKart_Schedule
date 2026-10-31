@@ -169,19 +169,19 @@ class SchedulerV5Tests(unittest.TestCase):
         )
 
     def test_same_seed_gives_same_plan(self):
-        self.assertEqual(make_plan(17, [4, 4, 4, 4]), make_plan(17, [4, 4, 4, 4]))
+        first = make_plan(17, [4, 4, 4, 4])
+        second = make_plan(17, [4, 4, 4, 4])
+        self.assertEqual(first, second)
         self.assertNotEqual(
             make_plan(17, [4, 4, 4, 4], seed=1), make_plan(17, [4, 4, 4, 4], seed=2)
         )
 
     def test_resolve_seed_depends_on_the_field_sizes(self):
         self.assertEqual(7, resolve_seed(7, 20, 8, [4, 4, 4]))
-        self.assertEqual(
-            resolve_seed(None, 20, 8, [4, 4, 2]), resolve_seed(None, 20, 8, [4, 4, 2])
-        )
-        self.assertNotEqual(
-            resolve_seed(None, 20, 8, [4, 4, 2]), resolve_seed(None, 20, 8, [4, 2, 4])
-        )
+        first = resolve_seed(None, 20, 8, [4, 4, 2])
+        second = resolve_seed(None, 20, 8, [4, 4, 2])
+        self.assertEqual(first, second)
+        self.assertNotEqual(first, resolve_seed(None, 20, 8, [4, 2, 4]))
 
     def test_invalid_inputs_raise_value_error(self):
         teams = create_team_list(20)
@@ -199,14 +199,17 @@ class SchedulerV5Tests(unittest.TestCase):
                 create_plan(teams, **kwargs)
 
     def test_fewer_teams_than_seats_per_round_raise_value_error(self):
+        teams_15 = create_team_list(15)
         with self.assertRaises(ValueError):
-            create_plan(create_team_list(15))
+            create_plan(teams_15)
+        teams_9 = create_team_list(9)
         with self.assertRaises(ValueError):
-            create_plan(create_team_list(9), 3, 8, [4, 4, 2])
+            create_plan(teams_9, 3, 8, [4, 4, 2])
 
     def test_more_teams_than_game_slots_raise_value_error(self):
+        teams_33 = create_team_list(33)
         with self.assertRaises(ValueError):
-            create_plan(create_team_list(33), 4, 2, 4)
+            create_plan(teams_33, 4, 2, 4)
 
     def test_empty_team_list_returns_empty_plan(self):
         self.assertEqual([], create_plan([]))
