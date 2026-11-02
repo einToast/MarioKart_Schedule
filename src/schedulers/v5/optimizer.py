@@ -194,13 +194,9 @@ class ScheduleOptimizer:
                 progress = iteration / iterations
                 temperature = start_temperature * math.exp(cooling * progress)
 
-            choice = rand()
-            if choice < field_swap_share:
-                delta = self._try_field_swap(state, rand, temperature)
-            elif choice < trade_share:
-                delta = self._try_trade(state, rand, temperature)
-            else:
-                delta = self._try_slot_move(state, rand, temperature)
+            delta = self._try_move(
+                state, rand, temperature, field_swap_share, trade_share
+            )
             if delta is None:
                 continue
 
@@ -211,6 +207,15 @@ class ScheduleOptimizer:
 
         state.energy = energy
         return best_plan, best_energy
+
+    def _try_move(self, state, rand, temperature, field_swap_share, trade_share):
+        """Try a random move kind picked by the shares; return its delta."""
+        choice = rand()
+        if choice < field_swap_share:
+            return self._try_field_swap(state, rand, temperature)
+        if choice < trade_share:
+            return self._try_trade(state, rand, temperature)
+        return self._try_slot_move(state, rand, temperature)
 
     def _try_field_swap(self, state, rand, temperature):
         """Apply a random ``PlanState.field_swap`` if accepted; return its delta."""
