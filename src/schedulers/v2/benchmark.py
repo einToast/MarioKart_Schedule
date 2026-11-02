@@ -6,7 +6,6 @@ import time
 from collections import Counter, defaultdict
 
 from schedulers.v2.generate_gameplay_lists import (
-    DEFAULT_MAX_SECONDS,
     create_plan,
     get_unrated_games,
 )

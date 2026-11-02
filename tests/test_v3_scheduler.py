@@ -11,7 +11,6 @@ sys.path.insert(0, "src")
 from schedulers.v3.benchmark import collect_metrics
 from schedulers.v3.config import resolve_seed
 from schedulers.v3.generate_gameplay_lists import (
-    DEFAULT_MAX_SECONDS,
     create_plan as wrapper_create_plan,
     create_team_list,
     generate_plan,
