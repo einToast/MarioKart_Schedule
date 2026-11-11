@@ -48,7 +48,7 @@ def schedule():
     print("Request received")
     data = request.get_json(silent=True) or {}
     try:
-        version = int(data.get("version", 3))
+        version = int(data.get("version", 2))
     except (TypeError, ValueError):
         version = None
 
